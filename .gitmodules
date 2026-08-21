@@ -1,0 +1,15 @@
+[submodule "ExternalModules/C_CrossRenderer"]
+	path = ExternalModules/C_CrossRenderer
+	url = git@github.com:jpincho/C_CrossRenderer
+[submodule "ExternalModules/Math"]
+	path = ExternalModules/Math
+	url = git@github.com:jpincho/Math
+[submodule "ExternalModules/Platform"]
+	path = ExternalModules/Platform
+	url = git@github.com:jpincho/Platform
+[submodule "ExternalModules/C_Utils"]
+	path = ExternalModules/C_Utils
+	url = git@github.com:jpincho/C_Utils
+[submodule "ExternalModules/CMakeUtils"]
+	path = ExternalModules/CMakeUtils
+	url = git@github.com:jpincho/CMakeUtils
