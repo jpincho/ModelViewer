@@ -15,6 +15,8 @@ static bool ShouldQuit = false;
 static char *ModelFilename = NULL;
 static float ModelScale = 1.0f;
 static bool ForceRenderCommandUpdate = false;
+static ivec2 LastMousePosition;
+static bool HaveLastMousePosition = false;
 
 //#define TEST_FILENAME "/home/jpincho/Models/glTF-Sample-Models/2.0/AnimatedCube/glTF/AnimatedCube.gltf"
 #define TEST_FILENAME "/home/jpincho/Models/glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf"
@@ -35,6 +37,19 @@ static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyC
 static void WindowClosed_Callback ( const crWindowHandle Handle )
 	{
 	ShouldQuit = true;
+	}
+
+static void MouseMoved_Callback ( const crWindowHandle Handle, const ivec2 NewPosition )
+	{
+	ivec2 Delta = { 0, 0 };
+	if ( HaveLastMousePosition )
+		{
+		Delta.x = NewPosition.x - LastMousePosition.x;
+		Delta.y = NewPosition.y - LastMousePosition.y;
+		}
+	LastMousePosition = NewPosition;
+	HaveLastMousePosition = true;
+	edSendMouseMovedEvent ( Handle, NewPosition, Delta );
 	}
 
 static void WindowResized_Callback ( const crWindowHandle Handle, const uvec2 NewSize )
@@ -82,6 +97,7 @@ static bool InitializeRenderer ( void )
 	Callbacks.WindowClosed = WindowClosed_Callback;
 	Callbacks.KeyStateChanged = KeyStateChanged_Callback;
 	Callbacks.WindowResized = WindowResized_Callback;
+	Callbacks.MouseMoved = MouseMoved_Callback;
 	crSetWindowManagerCallbacks ( Callbacks );
 
 	uvec2 WindowSize;

@@ -97,15 +97,15 @@ void CameraInput_ProcessCameraMovement ( const float TimeDelta )
 	if ( CameraInputData.Keys.MovePositiveZ )
 		++CameraMovementDirection.z;
 
-	vec3 CameraRotation = MATH_VEC3_ZERO;
+	vec3 CameraKeyRotation = MATH_VEC3_ZERO;
 	if ( CameraInputData.Keys.RotateNegativeX )
-		--CameraRotation.x;
+		--CameraKeyRotation.x;
 	if ( CameraInputData.Keys.RotatePositiveX )
-		++CameraRotation.x;
+		++CameraKeyRotation.x;
 	if ( CameraInputData.Keys.RotateNegativeY )
-		--CameraRotation.y;
+		--CameraKeyRotation.y;
 	if ( CameraInputData.Keys.RotatePositiveY )
-		++CameraRotation.y;
+		++CameraKeyRotation.y;
 
 	BaseTransformStruct CameraTransform = CameraInputData.MyCamera->Transform;
 	CameraInputData.Dirty = false;
@@ -118,14 +118,20 @@ void CameraInput_ProcessCameraMovement ( const float TimeDelta )
 		math_vec3_add ( &CameraTransform.Position, CameraTransform.Position, CameraMovementDirection );
 		CameraInputData.Dirty = true;
 		}
+
+	vec3 CameraMouseRotation = MATH_VEC3_ZERO;
 	if ( ( CameraInputData.MouseViewEnabled ) && ( math_ivec2_is_zero ( CameraInputData.MouseMovement ) == false ) )
 		{
-		CameraRotation.x += -CameraInputData.MouseMovement.y * CameraInputData.MouseSensitivity * CameraInputData.CameraRotationSpeed;
-		CameraRotation.y += -CameraInputData.MouseMovement.x * CameraInputData.MouseSensitivity * CameraInputData.CameraRotationSpeed;
+		CameraMouseRotation.x = -CameraInputData.MouseMovement.y * CameraInputData.MouseSensitivity * CameraInputData.CameraRotationSpeed;
+		CameraMouseRotation.y = -CameraInputData.MouseMovement.x * CameraInputData.MouseSensitivity * CameraInputData.CameraRotationSpeed;
 		math_ivec2_set_to_zero ( &CameraInputData.MouseMovement );
 		}
-	// This is for FPS style camera, where Y always points up.
-	if ( math_vec3_is_zero ( CameraRotation ) == false )
+
+	vec3 KeyRotation = MATH_VEC3_ZERO;
+	math_vec3_scale ( &KeyRotation, CameraKeyRotation, TimeDelta );
+	math_vec3_scale ( &CameraMouseRotation, CameraMouseRotation, TimeDelta );
+
+	if ( ( math_vec3_is_zero ( CameraMouseRotation ) == false ) || ( math_vec3_is_zero ( KeyRotation ) == false ) )
 		{
 		static const vec3 WorldXAxis = { 1.0f, 0.0f, 0.0f };
 		static const vec3 WorldYAxis = { 0.0f, 1.0f, 0.0f };
@@ -135,8 +141,8 @@ void CameraInput_ProcessCameraMovement ( const float TimeDelta )
 		GetDirectionVectorsFromBaseTransformStruct ( &CameraTransform, &CameraXAxis, &CameraYAxis, &CameraZAxis );
 
 		quat YRotation, XRotation;
-		math_quat_from_axis_angle ( &YRotation, WorldYAxis, CameraRotation.y * TimeDelta );
-		math_quat_from_axis_angle ( &XRotation, CameraXAxis, CameraRotation.x * TimeDelta );
+		math_quat_from_axis_angle ( &YRotation, WorldYAxis, CameraMouseRotation.y + KeyRotation.y );
+		math_quat_from_axis_angle ( &XRotation, CameraXAxis, CameraMouseRotation.x + KeyRotation.x );
 
 		math_quat_normalize ( &XRotation );
 		math_quat_normalize ( &YRotation );
