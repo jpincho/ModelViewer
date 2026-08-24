@@ -42,8 +42,6 @@ typedef struct ResourceEntry
 
 static PointerList Entries;
 
-
-// Internal functions to abstract from container
 static ResourceEntry *GetResourceEntryFromHandle ( const ResourceHandle Handle )
 	{
 	if ( Handle == NULL )
@@ -107,6 +105,9 @@ bool ResourceHub_DestroyEntry ( const ResourceHandle EntryHandle )
 			}
 		case ResourceType_Model:
 			{
+			DestroyModelDescriptor ( &EntryData->ModelResource.Descriptor );
+			if ( EntryData->Built == true )
+				DestroyModelData ( &EntryData->ModelResource.Data );
 			break;
 			}
 		case ResourceType_Shader:
@@ -131,6 +132,7 @@ bool ResourceHub_SetTextureDescriptor ( const ResourceHandle EntryHandle, const 
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
 	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Texture ) )
 		return false;
+	crDestroyTextureDescriptor ( &EntryData->TextureResource.Descriptor );
 	crCopyTextureDescriptor ( &EntryData->TextureResource.Descriptor, Descriptor );
 	EntryData->Built = false;
 	return true;
@@ -159,6 +161,7 @@ bool ResourceHub_SetMaterialDescriptor ( const ResourceHandle EntryHandle, const
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
 	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Material ) )
 		return false;
+	DestroyMaterialDescriptor ( &EntryData->MaterialResource.Descriptor );
 	CopyMaterialDescriptor ( &EntryData->MaterialResource.Descriptor, Descriptor );
 	EntryData->Built = false;
 	return true;
@@ -187,6 +190,7 @@ bool ResourceHub_SetMeshDescriptor ( const ResourceHandle EntryHandle, const Mes
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
 	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Mesh ) )
 		return false;
+	DestroyMeshDescriptor ( &EntryData->MeshResource.Descriptor );
 	CopyMeshDescriptor ( &EntryData->MeshResource.Descriptor, Descriptor );
 	EntryData->Built = false;
 	return true;
@@ -215,6 +219,7 @@ bool ResourceHub_SetModelDescriptor ( const ResourceHandle EntryHandle, const Mo
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
 	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Model ) )
 		return false;
+	DestroyModelDescriptor ( &EntryData->ModelResource.Descriptor );
 	CopyModelDescriptor ( &EntryData->ModelResource.Descriptor, Descriptor );
 	EntryData->Built = false;
 	return true;
@@ -319,9 +324,9 @@ bool ResourceHub_BuildResource ( const ResourceHandle EntryHandle )
 				}
 			LOG_DEBUG ( "Loading texture '%s'", EntryData->Name );
 			EntryData->TextureResource.TextureHandle = crCreateTexture ( EntryData->TextureResource.Descriptor );
-			EntryData->Built = true;
+			EntryData->Built = ( EntryData->TextureResource.TextureHandle != crTextureHandle_Invalid );
 			LOG_DEBUG ( "Loaded texture with handle %p", EntryData->TextureResource.TextureHandle );
-			return ( EntryData->TextureResource.TextureHandle != crTextureHandle_Invalid );
+			return EntryData->Built;
 			}
 		case ResourceType_Material:
 			{
@@ -359,6 +364,7 @@ bool ResourceHub_BuildResource ( const ResourceHandle EntryHandle )
 		case ResourceType_Mesh:
 			{
 			LOG_DEBUG ( "Building mesh '%s'", EntryData->Name );
+			DestroyMeshData ( &EntryData->MeshResource.Data );
 			if ( BuildMeshDataFromDescriptor ( EntryData->MeshResource.Descriptor, &EntryData->MeshResource.Data ) == false )
 				return false;
 			if ( EntryData->MeshResource.Descriptor.MaterialName != NULL )
@@ -379,6 +385,7 @@ bool ResourceHub_BuildResource ( const ResourceHandle EntryHandle )
 		case ResourceType_Model:
 			{
 			LOG_DEBUG ( "Building model '%s'", EntryData->Name );
+			DestroyModelData ( &EntryData->ModelResource.Data );
 			for ( unsigned Index = 0; Index < EntryData->ModelResource.Descriptor.MeshCount; ++Index )
 				{
 				ResourceHandle ResourceHandle = ResourceHub_FindResource ( ResourceType_Mesh, EntryData->ModelResource.Descriptor.Meshes[Index].MeshName );
