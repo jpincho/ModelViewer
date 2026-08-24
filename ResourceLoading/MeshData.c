@@ -34,6 +34,18 @@ bool BuildMeshDataFromDescriptor ( const MeshDescriptor Descriptor, MeshData *Da
 	else
 		Data->Normal = crShaderBufferHandle_Invalid;
 
+	if ( Descriptor.Colors )
+		{
+		crShaderBufferDescriptor ColorBufferDescriptor = { 0 };
+		ColorBufferDescriptor.AccessType = crShaderBufferAccessType_Static;
+		ColorBufferDescriptor.BufferType = crShaderBufferType_Array;
+		ColorBufferDescriptor.Capacity = ColorBufferDescriptor.DataSize = Descriptor.VertexCount * sizeof ( vec4 );
+		ColorBufferDescriptor.Data = Descriptor.Colors;
+		Data->Color = crCreateShaderBuffer ( ColorBufferDescriptor );
+		}
+	else
+		Data->Color = crShaderBufferHandle_Invalid;
+
 	if ( Descriptor.Indices )
 		{
 		crShaderBufferDescriptor IndexBufferDescriptor = { 0 };
@@ -75,7 +87,7 @@ bool BuildMeshDataFromDescriptor ( const MeshDescriptor Descriptor, MeshData *Da
 		crShaderBufferDescriptor BoneIndicesBufferDescriptor = { 0 };
 		BoneIndicesBufferDescriptor.AccessType = crShaderBufferAccessType_Static;
 		BoneIndicesBufferDescriptor.BufferType = crShaderBufferType_Array;
-		BoneIndicesBufferDescriptor.Capacity = BoneIndicesBufferDescriptor.DataSize = Descriptor.BoneCount * sizeof ( uint32_t );
+		BoneIndicesBufferDescriptor.Capacity = BoneIndicesBufferDescriptor.DataSize = Descriptor.VertexCount * sizeof ( uint32_t ) * MAX_WEIGHTS_PER_VERTEX;
 		BoneIndicesBufferDescriptor.Data = Descriptor.BoneIndices;
 		Data->BoneIndex = crCreateShaderBuffer ( BoneIndicesBufferDescriptor );
 		}
@@ -94,6 +106,7 @@ bool BuildMeshDataFromDescriptor ( const MeshDescriptor Descriptor, MeshData *Da
 	else
 		Data->BoneWeight = crShaderBufferHandle_Invalid;
 
+	Data->BoneCount = Descriptor.BoneCount;
 	Data->VertexCount = ( Descriptor.IndexCount != 0 ? Descriptor.IndexCount : Descriptor.VertexCount );
 	Data->Primitive = crTriangleList;
 
@@ -178,12 +191,12 @@ bool BuildMeshDataFromDescriptor ( const MeshDescriptor Descriptor, MeshData *Da
 	if ( ( !Data->BoneIndexStream.BufferHandle ) && ( Data->BoneIndex ) )
 		{
 		Data->BoneIndexStream.BufferHandle = Data->BoneIndex;
-		Data->BoneIndexStream.ComponentsPerElement = 1;
+		Data->BoneIndexStream.ComponentsPerElement = 4;
 		Data->BoneIndexStream.ComponentType = crShaderBufferComponentType_Unsigned32;
 		Data->BoneIndexStream.NormalizeData = false;
 		Data->BoneIndexStream.PerInstance = false;
 		Data->BoneIndexStream.StartOffset = 0;
-		Data->BoneIndexStream.Stride = sizeof ( uint32_t );
+		Data->BoneIndexStream.Stride = sizeof ( uint32_t ) * MAX_WEIGHTS_PER_VERTEX;
 		}
 	if ( ( !Data->BoneWeightStream.BufferHandle ) && ( Data->BoneWeight ) )
 		{

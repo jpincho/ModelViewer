@@ -1,7 +1,21 @@
 #include "Utils.h"
 #include "ResourceLoading/ThreadedFileLoader.h"
+#include <C_CrossRenderer/Shader.h>
+#include <stdlib.h>
 #include <string.h>
 #include <Platform/Logger.h>
+
+static void ComputeNodeWorldMatrices ( const MeshTreeNode *NodeTree, const unsigned NodeCount, mat4 *WorldMatrices )
+	{
+	for ( unsigned NodeIndex = 0; NodeIndex < NodeCount; ++NodeIndex )
+		{
+		const mat4 LocalMatrix = NodeTree[NodeIndex].DefaultTransformationMatrix;
+		if ( NodeTree[NodeIndex].ParentNode < 0 )
+			math_mat4_copy ( &WorldMatrices[NodeIndex], LocalMatrix );
+		else
+			math_mat4_multiply ( &WorldMatrices[NodeIndex], WorldMatrices[NodeTree[NodeIndex].ParentNode], LocalMatrix );
+		}
+	}
 
 scShaderDefinition BuildShaderDefinitionForMeshData ( const MeshData *InputMeshData )
 	{
@@ -100,58 +114,105 @@ bool BuildRenderCommandForMeshData ( crRenderCommand *Command, const MeshData *I
 	return true;
 	}
 
-bool BuildRenderCommandArrayForModelData ( crRenderCommand **CommandArray, unsigned *CommandCount, const ModelData *InputModelData )
+bool BuildModelRenderData ( ModelRenderData *RenderData, const ModelData *InputModelData )
 	{
-	// Count how many render commands this will take, to pre-allocate memory
+	memset ( RenderData, 0, sizeof ( ModelRenderData ) );
+
 	unsigned TotalMeshCount = 0;
 	for ( unsigned NodeIndex = 0; NodeIndex < InputModelData->NodeCount; ++NodeIndex )
-		{
 		TotalMeshCount += InputModelData->NodeTree[NodeIndex].MeshIndexCount;
-		}
+
 	if ( TotalMeshCount == 0 )
 		return false;
-	*CommandCount = TotalMeshCount;
-	*CommandArray = calloc ( TotalMeshCount, sizeof ( crRenderCommand ) );
-	if ( *CommandArray == NULL )
-		return false;
-	unsigned *MeshIndices = alloca ( TotalMeshCount * sizeof ( unsigned ) );
-	if ( MeshIndices == NULL )
+
+	RenderData->Count = TotalMeshCount;
+	RenderData->Commands = calloc ( TotalMeshCount, sizeof ( crRenderCommand ) );
+	RenderData->NodeIndices = calloc ( TotalMeshCount, sizeof ( unsigned ) );
+	if ( ( RenderData->Commands == NULL ) || ( RenderData->NodeIndices == NULL ) )
 		{
-		free ( *CommandArray );
+		DestroyModelRenderData ( RenderData );
 		return false;
 		}
+
+	unsigned *MeshIndices = alloca ( TotalMeshCount * sizeof ( unsigned ) );
 	unsigned CurrentPosition = 0;
 	for ( unsigned NodeIndex = 0; NodeIndex < InputModelData->NodeCount; ++NodeIndex )
 		{
 		for ( unsigned MeshIndex = 0; MeshIndex < InputModelData->NodeTree[NodeIndex].MeshIndexCount; ++MeshIndex )
 			{
 			MeshIndices[CurrentPosition] = InputModelData->NodeTree[NodeIndex].MeshIndices[MeshIndex];
+			RenderData->NodeIndices[CurrentPosition] = NodeIndex;
 			++CurrentPosition;
 			}
 		}
 
-	for ( unsigned Index = 0; Index < *CommandCount; ++Index )
+	for ( unsigned Index = 0; Index < RenderData->Count; ++Index )
 		{
-		// Load shader for this mesh
 		scShaderDefinition ShaderDefs = BuildShaderDefinitionForMeshData ( InputModelData->Meshes + MeshIndices[Index] );
 		ShaderDefs.LightModel = scLightModel_Off;
 		crShaderHandle Shader = scAssembleShader ( ShaderDefs );
 
-		crSetRenderCommandShader ( *CommandArray + Index, Shader );
-		BuildRenderCommandForMeshData ( *CommandArray + Index, InputModelData->Meshes + MeshIndices[Index], Shader );
+		crSetRenderCommandShader ( RenderData->Commands + Index, Shader );
+		BuildRenderCommandForMeshData ( RenderData->Commands + Index, InputModelData->Meshes + MeshIndices[Index], Shader );
 		}
+	RenderData->OriginalModelData = InputModelData;
 	return true;
+	}
+
+void UpdateModelRenderData ( const ModelRenderData *RenderData, BaseTransformStruct *Transform, const float Scale, const mat4 ViewMatrix, const mat4 ProjectionMatrix )
+	{
+	mat4 GlobalMatrix;
+	GetTransformationMatrix ( Transform, &GlobalMatrix );
+
+	mat4 ScaleMatrix;
+	math_mat4_set_scale_matrix ( &ScaleMatrix, ( vec3 ) { Scale, Scale, Scale } );
+	mat4 ScaledGlobalMatrix;
+	math_mat4_multiply ( &ScaledGlobalMatrix, ScaleMatrix, GlobalMatrix );
+
+	mat4 *NodeWorldMatrices = alloca ( RenderData->OriginalModelData->NodeCount * sizeof ( mat4 ) );
+	ComputeNodeWorldMatrices ( RenderData->OriginalModelData->NodeTree, RenderData->OriginalModelData->NodeCount, NodeWorldMatrices );
+
+	for ( unsigned Index = 0; Index < RenderData->Count; ++Index )
+		{
+		const unsigned NodeIndex = RenderData->NodeIndices[Index];
+		mat4 ModelMatrix;
+		math_mat4_multiply ( &ModelMatrix, ScaledGlobalMatrix, NodeWorldMatrices[NodeIndex] );
+
+		crRenderCommand *Command = &RenderData->Commands[Index];
+		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ModelMatrix" ), ModelMatrix );
+		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ViewMatrix" ), ViewMatrix );
+		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ProjectionMatrix" ), ProjectionMatrix );
+		}
+	}
+
+void DestroyModelRenderData ( ModelRenderData *RenderData )
+	{
+	if ( RenderData->Commands != NULL )
+		{
+		for ( unsigned Index = 0; Index < RenderData->Count; ++Index )
+			SAFE_DELETE_SHADER ( RenderData->Commands[Index].Shader );
+		}
+	SAFE_DEL_C ( RenderData->Commands );
+	SAFE_DEL_C ( RenderData->NodeIndices );
+	RenderData->Count = 0;
+	RenderData->OriginalModelData = NULL;
 	}
 
 ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *ResourceName )
 	{
 	int FileIndex = ThreadedFileLoader_LoadFile ( Filename );
 	if ( FileIndex == -1 )
+		{
+		LOG_ERROR ( "ThreadedFileLoader_LoadFile failed" );
 		return ResourceHandle_Invalid;
+		}
 	ThreadedFileLoader_WaitUntilAllLoaded();
 	ThreadedFileLoader_State State = ThreadedFileLoader_GetFileLoadState ( FileIndex );
 	if ( State != HUD_STATE_LOADED_OK )
+		{
+		LOG_ERROR ( "ThreadedFileLoader_GetFileLoadState returned %u", State );
 		return ResourceHandle_Invalid;
+		}
 
 	char *OwningPath = alloca ( strlen ( Filename ) + 1 );
 	strcpy ( OwningPath, Filename );

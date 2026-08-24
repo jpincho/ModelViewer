@@ -46,6 +46,8 @@ static PointerList Entries;
 // Internal functions to abstract from container
 static ResourceEntry *GetResourceEntryFromHandle ( const ResourceHandle Handle )
 	{
+	if ( Handle == NULL )
+		return NULL;
 	PointerListNode *Node = ( PointerListNode * ) Handle;
 	ResourceEntry *EntryData = ( ResourceEntry* ) PointerList_GetNodeData ( Node );
 	return EntryData;
@@ -127,7 +129,7 @@ bool ResourceHub_DestroyEntry ( const ResourceHandle EntryHandle )
 bool ResourceHub_SetTextureDescriptor ( const ResourceHandle EntryHandle, const crTextureDescriptor *Descriptor )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
-	if ( EntryData->Type != ResourceType_Texture )
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Texture ) )
 		return false;
 	crCopyTextureDescriptor ( &EntryData->TextureResource.Descriptor, Descriptor );
 	EntryData->Built = false;
@@ -137,15 +139,15 @@ bool ResourceHub_SetTextureDescriptor ( const ResourceHandle EntryHandle, const 
 crTextureDescriptor *ResourceHub_GetTextureDescriptor ( const ResourceHandle EntryHandle )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
-	if ( EntryData->Type != ResourceType_Texture )
-		return false;
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Texture ) )
+		return NULL;
 	return &EntryData->TextureResource.Descriptor;
 	}
 
 crTextureHandle ResourceHub_GetTextureHandle ( const ResourceHandle EntryHandle )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
-	if ( EntryData->Type != ResourceType_Texture )
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Texture ) )
 		return NULL;
 	if ( ResourceHub_BuildResource ( EntryHandle ) == false )
 		return NULL;
@@ -155,7 +157,7 @@ crTextureHandle ResourceHub_GetTextureHandle ( const ResourceHandle EntryHandle 
 bool ResourceHub_SetMaterialDescriptor ( const ResourceHandle EntryHandle, const MaterialDescriptor *Descriptor )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
-	if ( EntryData->Type != ResourceType_Material )
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Material ) )
 		return false;
 	CopyMaterialDescriptor ( &EntryData->MaterialResource.Descriptor, Descriptor );
 	EntryData->Built = false;
@@ -165,15 +167,15 @@ bool ResourceHub_SetMaterialDescriptor ( const ResourceHandle EntryHandle, const
 MaterialDescriptor *ResourceHub_GetMaterialDescriptor ( const ResourceHandle EntryHandle )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
-	if ( EntryData->Type != ResourceType_Material )
-		return false;
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Material ) )
+		return NULL;
 	return &EntryData->MaterialResource.Descriptor;
 	}
 
 MaterialData *ResourceHub_GetMaterialData ( const ResourceHandle EntryHandle )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
-	if ( EntryData->Type != ResourceType_Material )
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Material ) )
 		return NULL;
 	if ( ResourceHub_BuildResource ( EntryHandle ) == false )
 		return NULL;
@@ -183,7 +185,7 @@ MaterialData *ResourceHub_GetMaterialData ( const ResourceHandle EntryHandle )
 bool ResourceHub_SetMeshDescriptor ( const ResourceHandle EntryHandle, const MeshDescriptor *Descriptor )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
-	if ( EntryData->Type != ResourceType_Mesh )
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Mesh ) )
 		return false;
 	CopyMeshDescriptor ( &EntryData->MeshResource.Descriptor, Descriptor );
 	EntryData->Built = false;
@@ -193,15 +195,15 @@ bool ResourceHub_SetMeshDescriptor ( const ResourceHandle EntryHandle, const Mes
 MeshDescriptor *ResourceHub_GetMeshDescriptor ( const ResourceHandle EntryHandle )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
-	if ( EntryData->Type != ResourceType_Mesh )
-		return false;
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Mesh ) )
+		return NULL;
 	return &EntryData->MeshResource.Descriptor;
 	}
 
 MeshData *ResourceHub_GetMeshData ( const ResourceHandle EntryHandle )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
-	if ( EntryData->Type != ResourceType_Mesh )
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Mesh ) )
 		return NULL;
 	if ( ResourceHub_BuildResource ( EntryHandle ) == false )
 		return NULL;
@@ -211,7 +213,7 @@ MeshData *ResourceHub_GetMeshData ( const ResourceHandle EntryHandle )
 bool ResourceHub_SetModelDescriptor ( const ResourceHandle EntryHandle, const ModelDescriptor *Descriptor )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
-	if ( EntryData->Type != ResourceType_Model )
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Model ) )
 		return false;
 	CopyModelDescriptor ( &EntryData->ModelResource.Descriptor, Descriptor );
 	EntryData->Built = false;
@@ -221,15 +223,15 @@ bool ResourceHub_SetModelDescriptor ( const ResourceHandle EntryHandle, const Mo
 ModelDescriptor *ResourceHub_GetModelDescriptor ( const ResourceHandle EntryHandle )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
-	if ( EntryData->Type != ResourceType_Model )
-		return false;
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Model ) )
+		return NULL;
 	return &EntryData->ModelResource.Descriptor;
 	}
 
 ModelData *ResourceHub_GetModelData ( const ResourceHandle EntryHandle )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
-	if ( EntryData->Type != ResourceType_Model )
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Model ) )
 		return NULL;
 	if ( ResourceHub_BuildResource ( EntryHandle ) == false )
 		return NULL;
@@ -239,7 +241,7 @@ ModelData *ResourceHub_GetModelData ( const ResourceHandle EntryHandle )
 bool ResourceHub_SetShaderDefinition ( const ResourceHandle EntryHandle, const scShaderDefinition *Definition )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
-	if ( EntryData->Type != ResourceType_Shader )
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Shader ) )
 		return false;
 	SAFE_DEL_C ( EntryData->ShaderResource.ShaderCode.VertexShader );
 	SAFE_DEL_C ( EntryData->ShaderResource.ShaderCode.FragmentShader );
@@ -253,7 +255,7 @@ bool ResourceHub_SetShaderDefinition ( const ResourceHandle EntryHandle, const s
 bool ResourceHub_SetShaderCode ( const ResourceHandle EntryHandle, const crShaderCode Code )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
-	if ( EntryData->Type != ResourceType_Shader )
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Shader ) )
 		return false;
 	SAFE_DEL_C ( EntryData->ShaderResource.ShaderCode.VertexShader );
 	SAFE_DEL_C ( EntryData->ShaderResource.ShaderCode.FragmentShader );
@@ -270,15 +272,15 @@ bool ResourceHub_SetShaderCode ( const ResourceHandle EntryHandle, const crShade
 crShaderCode *ResourceHub_GetShaderCode ( const ResourceHandle EntryHandle )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
-	if ( EntryData->Type != ResourceType_Shader )
-		return false;
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Shader ) )
+		return NULL;
 	return &EntryData->ShaderResource.ShaderCode;
 	}
 
 crShaderHandle ResourceHub_GetShaderHandle ( const ResourceHandle EntryHandle )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
-	if ( EntryData->Type != ResourceType_Shader )
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Shader ) )
 		return NULL;
 	if ( ResourceHub_BuildResource ( EntryHandle ) == false )
 		return NULL;
@@ -301,6 +303,8 @@ ResourceHandle ResourceHub_FindResource ( const ResourceHub_Type Type, const cha
 bool ResourceHub_BuildResource ( const ResourceHandle EntryHandle )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
+	if ( EntryData == NULL )
+		return false;
 
 	if ( EntryData->Built == true )
 		return true;

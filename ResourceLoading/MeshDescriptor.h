@@ -1,8 +1,9 @@
 #pragma once
 #include <Platform/defines.h>
-#include <stdint.h>
 #include <Math/mathlib.h>
 #include <C_CrossRenderer/CrossRenderer.h>
+#include "AABB.h"
+#include <stdint.h>
 
 BEGIN_C_DECLARATIONS
 
@@ -39,6 +40,7 @@ typedef struct
 	float *BoneWeights;
 	uint32_t *BoneIndices;
 
+	AABB BoundingBox;
 	crPrimitiveType Primitive;
 	char *MeshName, *MaterialName;
 	} MeshDescriptor;

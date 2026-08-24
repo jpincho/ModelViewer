@@ -1,10 +1,10 @@
 #pragma once
 #include "MeshDescriptor.h"
-#include "BoundingBox.h"
+#include "AABB.h"
 
 #define MAX_WEIGHTS_PER_VERTEX 4
 
-typedef struct
+typedef struct ModelDescriptor
 	{
 	char *Name;
 	MeshDescriptor *Meshes;

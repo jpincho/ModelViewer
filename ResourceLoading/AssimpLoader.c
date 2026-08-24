@@ -10,13 +10,16 @@
 #include <assimp/cimport.h>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include <assimp/metadata.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
 #include <malloc.h>
 
 #if defined (PLATFORM_COMPILER_GNU)
 // For fnmatch definition of FNM_CASEFOLD
-#define _GNU_SOURCE 
+#define _GNU_SOURCE
 #include <fnmatch.h>
 #elif defined (PLATFORM_COMPILER_MSVC)
 #include <shlwapi.h>
@@ -115,7 +118,118 @@ static void translate_aiQuaternion_to_quat ( const struct aiQuaternion input, ve
 	output->w = input.w;
 	}
 
-static void count_assimp_nodes ( const struct aiNode *CurrentAssimpNode, unsigned *count )
+static vec3 axis_metadata_to_vec3 ( int32_t Axis, const int32_t Sign )
+	{
+	const float Scale = Sign < 0 ? -1.0f : 1.0f;
+	vec3 Output = { 0.0f, 0.0f, 0.0f };
+	if ( ( Axis < 0 ) || ( Axis > 2 ) ) // If it's an invalid axis, default to Y
+		Axis = 1;
+	Output.raw[Axis] = Scale;
+	return Output;
+	}
+
+static void build_coordinate_basis_matrix ( mat4 *Output, const vec3 Right, const vec3 Up, const vec3 Forward )
+	{
+	math_mat4_set_identity_matrix ( Output );
+	Output->vectors[0].x = Right.x;
+	Output->vectors[0].y = Right.y;
+	Output->vectors[0].z = Right.z;
+	Output->vectors[1].x = Up.x;
+	Output->vectors[1].y = Up.y;
+	Output->vectors[1].z = Up.z;
+	Output->vectors[2].x = Forward.x;
+	Output->vectors[2].y = Forward.y;
+	Output->vectors[2].z = Forward.z;
+	}
+
+static bool ReadMetadataInt32 ( const struct aiMetadata *Metadata, const char *Key, int32_t *OutValue )
+	{
+	for ( unsigned MetadataIndex = 0; MetadataIndex < Metadata->mNumProperties; ++MetadataIndex )
+		{
+		if ( strcmp ( Metadata->mKeys[MetadataIndex].data, Key ) != 0 )
+			continue;
+		if ( Metadata->mValues[MetadataIndex].mType != AI_INT32 )
+			return false;
+		*OutValue = * ( int32_t * ) Metadata->mValues[MetadataIndex].mData;
+		return true;
+		}
+	return false;
+	}
+
+static bool ReadMetadataDouble ( const struct aiMetadata *Metadata, const char *Key, double *OutValue )
+	{
+	for ( unsigned MetadataIndex = 0; MetadataIndex < Metadata->mNumProperties; ++MetadataIndex )
+		{
+		if ( strcmp ( Metadata->mKeys[MetadataIndex].data, Key ) != 0 )
+			continue;
+		if ( Metadata->mValues[MetadataIndex].mType == AI_DOUBLE )
+			{
+			*OutValue = * ( double * ) Metadata->mValues[MetadataIndex].mData;
+			return true;
+			}
+		if ( Metadata->mValues[MetadataIndex].mType == AI_FLOAT )
+			{
+			*OutValue = ( double ) * ( float * ) Metadata->mValues[MetadataIndex].mData;
+			return true;
+			}
+		return false;
+		}
+	return false;
+	}
+
+static unsigned FindRootNodeIndex ( const MeshTreeNode *NodeTree, const unsigned NodeCount ) // Should always be zero, but...
+	{
+	for ( unsigned NodeIndex = 0; NodeIndex < NodeCount; ++NodeIndex )
+		{
+		if ( NodeTree[NodeIndex].ParentNode < 0 )
+			return NodeIndex;
+		}
+	return 0;
+	}
+
+static void ApplyAssimpMetadataToRootNode ( MeshTreeNode *RootNode, const struct aiMetadata *Metadata )
+	{
+	int32_t UpAxis = 1, UpAxisSign = 1, FrontAxis = 2, FrontAxisSign = 1, CoordAxis = 0, CoordAxisSign = 1;
+	double UnitScaleFactor = 1.0;
+	bool HasAxisMetadata = false;
+
+	HasAxisMetadata |= ReadMetadataInt32 ( Metadata, "UpAxis", &UpAxis );
+	HasAxisMetadata |= ReadMetadataInt32 ( Metadata, "UpAxisSign", &UpAxisSign );
+	HasAxisMetadata |= ReadMetadataInt32 ( Metadata, "FrontAxis", &FrontAxis );
+	HasAxisMetadata |= ReadMetadataInt32 ( Metadata, "FrontAxisSign", &FrontAxisSign );
+	HasAxisMetadata |= ReadMetadataInt32 ( Metadata, "CoordAxis", &CoordAxis );
+	HasAxisMetadata |= ReadMetadataInt32 ( Metadata, "CoordAxisSign", &CoordAxisSign );
+	const bool HasUnitScaleMetadata = ReadMetadataDouble ( Metadata, "UnitScaleFactor", &UnitScaleFactor );
+
+	if ( ( HasAxisMetadata == false ) && ( HasUnitScaleMetadata == false ) )
+		return;
+
+	const vec3 FileRight = axis_metadata_to_vec3 ( CoordAxis, CoordAxisSign );
+	const vec3 FileUp = axis_metadata_to_vec3 ( UpAxis, UpAxisSign );
+	const vec3 FileForward = axis_metadata_to_vec3 ( FrontAxis, FrontAxisSign );
+	const vec3 EngineRight = axis_metadata_to_vec3 ( 0, 1 );
+	const vec3 EngineUp = axis_metadata_to_vec3 ( 1, 1 );
+	const vec3 EngineForward = axis_metadata_to_vec3 ( 2, 1 );
+
+	mat4 FileBasis, TargetBasis, FileBasisInverse, Conversion, UpdatedRoot;
+	build_coordinate_basis_matrix ( &FileBasis, FileRight, FileUp, FileForward );
+	build_coordinate_basis_matrix ( &TargetBasis, EngineRight, EngineUp, EngineForward );
+	if ( math_mat4_inverse ( &FileBasisInverse, FileBasis ) == false )
+		{
+		LOG_ERROR ( "Unable to invert coordinate basis matrix from Assimp metadata" );
+		return;
+		}
+	math_mat4_multiply ( &Conversion, TargetBasis, FileBasisInverse );
+	if ( UnitScaleFactor != 1.0 )
+		math_mat4_scale_scalar ( &Conversion, Conversion, ( float ) UnitScaleFactor );
+
+	math_mat4_multiply ( &UpdatedRoot, Conversion, RootNode->DefaultTransformationMatrix );
+	RootNode->DefaultTransformationMatrix = UpdatedRoot;
+
+	LOG_DEBUG ( "Applied Assimp metadata correction (UpAxis=%d, FrontAxis=%d, CoordAxis=%d, UnitScaleFactor=%f)", UpAxis, FrontAxis, CoordAxis, ( float ) UnitScaleFactor );
+	}
+
+static void CountAssimpNodes ( const struct aiNode *CurrentAssimpNode, unsigned *count )
 	{
 	if ( CurrentAssimpNode == NULL )
 		return;
@@ -123,7 +237,7 @@ static void count_assimp_nodes ( const struct aiNode *CurrentAssimpNode, unsigne
 	++ ( *count );
 	for ( unsigned index = 0; index < CurrentAssimpNode->mNumChildren; ++index )
 		{
-		count_assimp_nodes ( CurrentAssimpNode->mChildren[index], count );
+		CountAssimpNodes ( CurrentAssimpNode->mChildren[index], count );
 		}
 	}
 
@@ -253,29 +367,29 @@ static bool LoadAssimpMesh ( const struct aiMesh *AssimpMesh, MeshDescriptor *De
 
 	Descriptor->Primitive = crTriangleList;
 	Descriptor->MeshName = strdup ( AssimpMesh->mName.data );
-	Descriptor->Positions = calloc ( sizeof ( vec3 ), AssimpMesh->mNumVertices );
+	Descriptor->Positions = calloc ( AssimpMesh->mNumVertices, sizeof ( vec3 ) );
 	ASSERT_FAIL ( Descriptor->Positions );
 	memcpy ( Descriptor->Positions, AssimpMesh->mVertices, sizeof ( vec3 ) * AssimpMesh->mNumVertices );
 	Descriptor->VertexCount = AssimpMesh->mNumVertices;
 
 	if ( ( AssimpMesh->mBitangents != NULL ) && ( AssimpMesh->mTangents != NULL ) )
 		{
-		Descriptor->Bitangents = calloc ( sizeof ( vec3 ), AssimpMesh->mNumVertices );
+		Descriptor->Bitangents = calloc ( AssimpMesh->mNumVertices, sizeof ( vec3 ) );
 		assert ( Descriptor->Bitangents );
 		memcpy ( Descriptor->Bitangents, AssimpMesh->mBitangents, sizeof ( vec3 ) * AssimpMesh->mNumVertices );
-		Descriptor->Tangents = calloc ( sizeof ( vec3 ), AssimpMesh->mNumVertices );
+		Descriptor->Tangents = calloc ( AssimpMesh->mNumVertices, sizeof ( vec3 ) );
 		assert ( Descriptor->Tangents );
 		memcpy ( Descriptor->Tangents, AssimpMesh->mTangents, sizeof ( vec3 ) * AssimpMesh->mNumVertices );
 		}
 	if ( AssimpMesh->mNormals != NULL )
 		{
-		Descriptor->Normals = calloc ( sizeof ( vec3 ), AssimpMesh->mNumVertices );
+		Descriptor->Normals = calloc ( AssimpMesh->mNumVertices, sizeof ( vec3 ) );
 		assert ( Descriptor->Normals );
 		memcpy ( Descriptor->Normals, AssimpMesh->mNormals, sizeof ( vec3 ) * AssimpMesh->mNumVertices );
 		}
 	if ( ( AssimpMesh->mTextureCoords != NULL ) && ( AssimpMesh->mTextureCoords[0] != NULL ) )
 		{
-		Descriptor->TexCoords = calloc ( sizeof ( vec2 ), AssimpMesh->mNumVertices );
+		Descriptor->TexCoords = calloc ( AssimpMesh->mNumVertices, sizeof ( vec2 ) );
 		assert ( Descriptor->TexCoords );
 		for ( unsigned vertex_index = 0; vertex_index < AssimpMesh->mNumVertices; ++vertex_index )
 			{
@@ -284,7 +398,7 @@ static bool LoadAssimpMesh ( const struct aiMesh *AssimpMesh, MeshDescriptor *De
 			}
 		}
 
-	Descriptor->Indices = calloc ( sizeof ( uint32_t ), AssimpMesh->mNumFaces * 3 );
+	Descriptor->Indices = calloc ( AssimpMesh->mNumFaces * 3, sizeof ( uint32_t ) );
 	assert ( Descriptor->Indices );
 	Descriptor->IndexCount = AssimpMesh->mNumFaces * 3;
 	unsigned index = 0;
@@ -356,6 +470,14 @@ static bool LoadAssimpMesh ( const struct aiMesh *AssimpMesh, MeshDescriptor *De
 			// TODO make sure the weights all add up to 1.0
 			}
 		}
+
+	Descriptor->BoundingBox.Min.x = AssimpMesh->mAABB.mMin.x;
+	Descriptor->BoundingBox.Min.y = AssimpMesh->mAABB.mMin.y;
+	Descriptor->BoundingBox.Min.z = AssimpMesh->mAABB.mMin.z;
+
+	Descriptor->BoundingBox.Max.x = AssimpMesh->mAABB.mMax.x;
+	Descriptor->BoundingBox.Max.y = AssimpMesh->mAABB.mMax.y;
+	Descriptor->BoundingBox.Max.z = AssimpMesh->mAABB.mMax.z;
 	LOG_DEBUG ( "Loaded mesh '%s'", Descriptor->MeshName );
 	return true;
 	}
@@ -365,7 +487,8 @@ static bool LoadAssimpAnimation ( const struct aiAnimation *AssimpAnimation, Ani
 	memset ( Descriptor, 0, sizeof ( AnimationDescriptor ) );
 
 	Descriptor->AnimationName = strdup ( AssimpAnimation->mName.data );
-	Descriptor->Duration = AssimpAnimation->mDuration / ( AssimpAnimation->mTicksPerSecond != 0.0 ? AssimpAnimation->mTicksPerSecond : 30.0 );
+	const double TicksPerSecond = AssimpAnimation->mTicksPerSecond != 0.0 ? AssimpAnimation->mTicksPerSecond : 30.0;
+	Descriptor->Duration = AssimpAnimation->mDuration / TicksPerSecond;
 	Descriptor->NodeTracks = calloc ( AssimpAnimation->mNumChannels, sizeof ( NodeTrack ) );
 	Descriptor->NodeTrackCount = AssimpAnimation->mNumChannels;
 	assert ( Descriptor->NodeTracks );
@@ -379,7 +502,7 @@ static bool LoadAssimpAnimation ( const struct aiAnimation *AssimpAnimation, Ani
 		CurrentTrack->PositionCount = AssimpAnimation->mChannels[channel_index]->mNumPositionKeys;
 		for ( unsigned KeyIndex = 0; KeyIndex < AssimpAnimation->mChannels[channel_index]->mNumPositionKeys; ++KeyIndex )
 			{
-			CurrentTrack->Positions[KeyIndex].time = AssimpAnimation->mChannels[channel_index]->mPositionKeys[KeyIndex].mTime / AssimpAnimation->mTicksPerSecond;
+			CurrentTrack->Positions[KeyIndex].time = AssimpAnimation->mChannels[channel_index]->mPositionKeys[KeyIndex].mTime / TicksPerSecond;
 			translate_aiVector3D_to_vec3 ( AssimpAnimation->mChannels[channel_index]->mPositionKeys[KeyIndex].mValue, &CurrentTrack->Positions[KeyIndex].Vec3Value );
 			}
 
@@ -388,7 +511,7 @@ static bool LoadAssimpAnimation ( const struct aiAnimation *AssimpAnimation, Ani
 		CurrentTrack->RotationCount = AssimpAnimation->mChannels[channel_index]->mNumRotationKeys;
 		for ( unsigned KeyIndex = 0; KeyIndex < AssimpAnimation->mChannels[channel_index]->mNumRotationKeys; ++KeyIndex )
 			{
-			CurrentTrack->Rotations[KeyIndex].time = AssimpAnimation->mChannels[channel_index]->mRotationKeys[KeyIndex].mTime / AssimpAnimation->mTicksPerSecond;
+			CurrentTrack->Rotations[KeyIndex].time = AssimpAnimation->mChannels[channel_index]->mRotationKeys[KeyIndex].mTime / TicksPerSecond;
 			translate_aiQuaternion_to_quat ( AssimpAnimation->mChannels[channel_index]->mRotationKeys[KeyIndex].mValue, &CurrentTrack->Rotations[KeyIndex].QuatValue );
 			}
 
@@ -397,7 +520,7 @@ static bool LoadAssimpAnimation ( const struct aiAnimation *AssimpAnimation, Ani
 		CurrentTrack->ScaleCount = AssimpAnimation->mChannels[channel_index]->mNumScalingKeys;
 		for ( unsigned KeyIndex = 0; KeyIndex < AssimpAnimation->mChannels[channel_index]->mNumScalingKeys; ++KeyIndex )
 			{
-			CurrentTrack->Scales[KeyIndex].time = AssimpAnimation->mChannels[channel_index]->mScalingKeys[KeyIndex].mTime / AssimpAnimation->mTicksPerSecond;
+			CurrentTrack->Scales[KeyIndex].time = AssimpAnimation->mChannels[channel_index]->mScalingKeys[KeyIndex].mTime / TicksPerSecond;
 			translate_aiVector3D_to_vec3 ( AssimpAnimation->mChannels[channel_index]->mScalingKeys[KeyIndex].mValue, &CurrentTrack->Scales[KeyIndex].Vec3Value );
 			}
 		}
@@ -415,6 +538,7 @@ bool LoadFileWithAssimp ( const char *Filename, DataFileContentDescriptor *FileD
 	AssimpImportFlags |= aiProcess_CalcTangentSpace;
 	AssimpImportFlags |= aiProcess_ImproveCacheLocality;
 	AssimpImportFlags |= aiProcess_FindInstances;// Search for duplicate meshes
+	AssimpImportFlags |= aiProcess_GenBoundingBoxes;
 	//AssimpImportFlags |= aiProcess_OptimizeMeshes;
 	//AssimpImportFlags |= aiProcess_OptimizeGraph;// Remove empty nodes
 
@@ -427,10 +551,16 @@ bool LoadFileWithAssimp ( const char *Filename, DataFileContentDescriptor *FileD
 		}
 
 	FileData->NodeCount = 0;
-	count_assimp_nodes ( AssimpScene->mRootNode, &FileData->NodeCount );
+	CountAssimpNodes ( AssimpScene->mRootNode, &FileData->NodeCount );
 	FileData->NodeTree = calloc ( FileData->NodeCount, sizeof ( MeshTreeNode ) );
 	unsigned StartIndex = 0;
 	LoadAssimpNode ( FileData->NodeTree, &StartIndex, -1, AssimpScene->mRootNode );
+
+	if ( AssimpScene->mMetaData != NULL )
+		{
+		const unsigned RootNodeIndex = FindRootNodeIndex ( FileData->NodeTree, FileData->NodeCount );
+		ApplyAssimpMetadataToRootNode ( &FileData->NodeTree[RootNodeIndex], AssimpScene->mMetaData );
+		}
 
 	LogMeshTreeNode ( FileData->NodeTree, 0, 0 );
 
@@ -530,6 +660,7 @@ bool LoadFileWithAssimp ( const char *Filename, DataFileContentDescriptor *FileD
 				goto on_error;
 			}
 		}
+
 	LOG_DEBUG ( "Finished loading '%s'", Filename );
 	aiReleaseImport ( AssimpScene );
 	return true;

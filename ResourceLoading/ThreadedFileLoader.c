@@ -153,7 +153,10 @@ int ThreadedFileLoader_LoadFile ( const char *Filename )
 		{
 		const unsigned GrowStep = 10;
 		if ( Array_Resize ( ( void ** ) &DataFiles.Data, DataFiles.Used, &DataFiles.Capacity, sizeof ( DataFileEntry ), DataFiles.Capacity + GrowStep, true ) == false )
+			{
+			mtx_unlock ( &ResourceAccessMutex );
 			return -1;
+			}
 		}
 
 	// Search for an empty slot
