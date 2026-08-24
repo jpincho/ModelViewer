@@ -9,6 +9,8 @@ bool BuildMeshDataFromDescriptor ( const MeshDescriptor Descriptor, MeshData *Da
 	PositionBufferDescriptor.Capacity = PositionBufferDescriptor.DataSize = Descriptor.VertexCount * sizeof ( vec3 );
 	PositionBufferDescriptor.Data = Descriptor.Positions;
 	Data->Position = crCreateShaderBuffer ( PositionBufferDescriptor );
+	if ( Data->Position == crShaderBufferHandle_Invalid )
+		return false;
 
 	if ( Descriptor.TexCoords )
 		{
@@ -131,12 +133,12 @@ bool BuildMeshDataFromDescriptor ( const MeshDescriptor Descriptor, MeshData *Da
 	if ( ( !Data->ColorStream.BufferHandle ) && ( Data->Color ) )
 		{
 		Data->ColorStream.BufferHandle = Data->Color;
-		Data->ColorStream.ComponentsPerElement = 3;
+		Data->ColorStream.ComponentsPerElement = 4;
 		Data->ColorStream.ComponentType = crShaderBufferComponentType_Float;
 		Data->ColorStream.NormalizeData = false;
 		Data->ColorStream.PerInstance = false;
 		Data->ColorStream.StartOffset = 0;
-		Data->ColorStream.Stride = sizeof ( vec3 );
+		Data->ColorStream.Stride = sizeof ( vec4 );
 		}
 	if ( ( !Data->TexCoordStream.BufferHandle ) && ( Data->TexCoord ) )
 		{

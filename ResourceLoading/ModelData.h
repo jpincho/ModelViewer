@@ -11,3 +11,5 @@ typedef struct
 	MeshData *Meshes;
 	unsigned MeshCount;
 	} ModelData;
+
+void DestroyModelData ( ModelData *Data );

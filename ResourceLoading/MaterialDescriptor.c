@@ -25,7 +25,7 @@ void DestroyMaterialDescriptor ( MaterialDescriptor *Material )
 void CopyMaterialDescriptor ( MaterialDescriptor *Output, const MaterialDescriptor *Input )
 	{
 	memcpy ( Output, Input, sizeof ( MaterialDescriptor ) );
-	Output->MaterialName = strdup ( Input->MaterialName );
+	Output->MaterialName = Input->MaterialName ? strdup ( Input->MaterialName ) : NULL;
 	for ( unsigned TextureType = 0; TextureType < ( unsigned ) MatTexType_Count; ++TextureType )
 		{
 		if ( Input->Textures[TextureType].TextureName != NULL )

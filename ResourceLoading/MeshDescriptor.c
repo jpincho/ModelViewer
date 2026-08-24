@@ -1,5 +1,6 @@
 #include "MeshDescriptor.h"
 #include <string.h>
+#include <stdio.h>
 #include <Platform/Logger.h>
 
 void LogMeshDescriptor ( const MeshDescriptor Descriptor, const int Indentation )
@@ -13,7 +14,7 @@ void LogMeshDescriptor ( const MeshDescriptor Descriptor, const int Indentation 
 void CopyMeshBone ( MeshBone *Output, const MeshBone *Input )
 	{
 	Output->NodeIndex = Input->NodeIndex;
-	Output->BoneName = strdup ( Input->BoneName );
+	Output->BoneName = Input->BoneName ? strdup ( Input->BoneName ) : NULL;
 	math_mat4_copy ( &Output->ModelToBoneMatrix, Input->ModelToBoneMatrix );
 	}
 
@@ -25,7 +26,16 @@ void DestroyMeshBone ( MeshBone *Bone )
 void CopyMeshDescriptor ( MeshDescriptor *Output, const MeshDescriptor *Input )
 	{
 	if ( Input->VertexCount == 0 )
+		{
+		Output->VertexCount = 0;
+		Output->IndexCount = Input->IndexCount;
+		Output->BoneCount = Input->BoneCount;
+		Output->Primitive = Input->Primitive;
+		Output->BoundingBox = Input->BoundingBox;
+		Output->MeshName = Input->MeshName ? strdup ( Input->MeshName ) : NULL;
+		Output->MaterialName = Input->MaterialName ? strdup ( Input->MaterialName ) : NULL;
 		return;
+		}
 	if ( Input->Colors != NULL )
 		{
 		Output->Colors = malloc ( sizeof ( vec4 ) * Input->VertexCount );
@@ -95,8 +105,9 @@ void CopyMeshDescriptor ( MeshDescriptor *Output, const MeshDescriptor *Input )
 	Output->IndexCount = Input->IndexCount;
 	Output->BoneCount = Input->BoneCount;
 	Output->Primitive = Input->Primitive;
-	Output->MeshName = strdup ( Input->MeshName );
-	Output->MaterialName = strdup ( Input->MaterialName );
+	Output->BoundingBox = Input->BoundingBox;
+	Output->MeshName = Input->MeshName ? strdup ( Input->MeshName ) : NULL;
+	Output->MaterialName = Input->MaterialName ? strdup ( Input->MaterialName ) : NULL;
 	}
 
 void DestroyMeshDescriptor ( MeshDescriptor *Descriptor )
@@ -122,7 +133,7 @@ void DestroyMeshDescriptor ( MeshDescriptor *Descriptor )
 void CopyMeshTreeNode ( MeshTreeNode *Output, const MeshTreeNode *Input )
 	{
 	memcpy ( Output, Input, sizeof ( MeshTreeNode ) );
-	Output->NodeName = strdup ( Input->NodeName );
+	Output->NodeName = Input->NodeName ? strdup ( Input->NodeName ) : NULL;
 	if ( Input->ChildNodeCount != 0 )
 		{
 		Output->ChildNodes = malloc ( sizeof ( int ) * Input->ChildNodeCount );

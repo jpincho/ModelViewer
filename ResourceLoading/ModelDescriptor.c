@@ -13,9 +13,7 @@ void LogModelDescriptor ( const ModelDescriptor Descriptor, const int Indentatio
 
 void CopyModelDescriptor ( ModelDescriptor *Output, const ModelDescriptor *Input )
 	{
-	AABB AABBox;
-
-	Output->Name = strdup ( Input->Name );
+	Output->Name = Input->Name ? strdup ( Input->Name ) : NULL;
 	Output->MeshCount = Input->MeshCount;
 	if ( Input->MeshCount )
 		{

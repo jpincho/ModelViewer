@@ -27,5 +27,6 @@ void DestroyDataFileContentDescriptor ( DataFileContentDescriptor *Descriptor )
 	SAFE_DEL_C ( Descriptor->Textures );
 	SAFE_DEL_C ( Descriptor->Filename );
 	SAFE_DEL_C ( Descriptor->NodeTree );
+	SAFE_DEL_C ( Descriptor->Animations );
 	SAFE_DEL_C ( Descriptor->Filename );
 	}
