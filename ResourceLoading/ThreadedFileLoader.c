@@ -37,76 +37,116 @@ static struct
 	unsigned Used, Capacity;
 	} DataFiles;
 
+static void ClearFileSlot ( const int Index )
+	{
+	if ( DataFiles.Data[Index].Descriptor != NULL )
+		{
+		DestroyDataFileContentDescriptor ( DataFiles.Data[Index].Descriptor );
+		free ( DataFiles.Data[Index].Descriptor );
+		DataFiles.Data[Index].Descriptor = NULL;
+		}
+	if ( DataFiles.Data[Index].State != HUB_STATE_EMPTY )
+		{
+		if ( DataFiles.Used > 0 )
+			--DataFiles.Used;
+		}
+	DataFiles.Data[Index].State = HUB_STATE_EMPTY;
+	DataFiles.Data[Index].TaskID = -1;
+	}
+
 static int LoadAssimpFileThreadFunction ( void *Param )
 	{
 	DataFileThreadData *ThreadData = ( DataFileThreadData * ) Param;
+	const int Index = ThreadData->Index;
 
-	// load the file with assimp
-	bool success = LoadFileWithAssimp ( DataFiles.Data[ThreadData->Index].Descriptor->Filename, DataFiles.Data[ThreadData->Index].Descriptor );
-	if ( success == false )
+	mtx_lock ( &ResourceAccessMutex );
+	if ( ( Index < 0 ) || ( ( unsigned ) Index >= DataFiles.Capacity ) || ( DataFiles.Data[Index].State != HUB_STATE_QUEUED ) || ( DataFiles.Data[Index].Descriptor == NULL ) )
 		{
-		DataFiles.Data[ThreadData->Index].State = HUB_STATE_LOADING_ERROR;
+		mtx_unlock ( &ResourceAccessMutex );
+		free ( ThreadData );
 		return -1;
 		}
-	/*
-		// Queue loading all textures needed for materials
-		for ( unsigned MaterialIterator = 0; MaterialIterator < DataFiles.Data[ThreadData->Index].Descriptor->MaterialCount; ++MaterialIterator )
-			{
-			for ( unsigned TextureIterator = 0; TextureIterator < MatTexType_Count; ++TextureIterator )
-				{
-				if ( DataFiles.Data[ThreadData->Index].Descriptor->Materials[MaterialIterator].Textures == NULL )
-					continue;
-				if ( DataFiles.Data[ThreadData->Index].Descriptor->Materials[MaterialIterator].Textures[TextureIterator].TextureName == NULL )
-					continue;
+	if ( DataFiles.Data[Index].Descriptor->Filename == NULL )
+		{
+		DataFiles.Data[Index].State = HUB_STATE_LOADING_ERROR;
+		mtx_unlock ( &ResourceAccessMutex );
+		free ( ThreadData );
+		return -1;
+		}
 
-				// replace the filename from the model's path, with the texture filename, and load it
-				unsigned PathLength = strlen ( DataFiles.Data[ThreadData->Index].Descriptor->Filename ) + strlen ( DataFiles.Data[ThreadData->Index].Descriptor->Materials[MaterialIterator].Textures[TextureIterator].TextureName ) + 1;
-				if ( PathLength == 0 ) continue;
-				char *FullPath = calloc ( PathLength, sizeof ( char ) );
-				if ( FullPath == NULL )
-					{
-					return -1;
-					}
-				const char *LastSlash = strrchr ( DataFiles.Data[ThreadData->Index].Descriptor->Filename, '/' );
-				if ( LastSlash )
-					{
-					strncpy ( FullPath, DataFiles.Data[ThreadData->Index].Descriptor->Filename, LastSlash - DataFiles.Data[ThreadData->Index].Descriptor->Filename + 1 ); // +1 to include the slash
-					strcat ( FullPath, DataFiles.Data[ThreadData->Index].Descriptor->Materials[MaterialIterator].Textures[TextureIterator].TextureName );
-					}
-				else
-					{
-					strcpy ( FullPath, DataFiles.Data[ThreadData->Index].Descriptor->Filename );
-					}
+	DataFiles.Data[Index].State = HUB_STATE_LOADING;
+	DataFileContentDescriptor *Descriptor = DataFiles.Data[Index].Descriptor;
+	mtx_unlock ( &ResourceAccessMutex );
 
-				// Update this material with the full path to the texture
-				free ( DataFiles.Data[ThreadData->Index].Descriptor->Materials[MaterialIterator].Textures[TextureIterator].TextureName );
-				DataFiles.Data[ThreadData->Index].Descriptor->Materials[MaterialIterator].Textures[TextureIterator].TextureName = strdup ( FullPath );
-				ThreadedFileLoader_LoadFile ( FullPath );
-				free ( FullPath );
-				}
-			}*/
-	DataFiles.Data[ThreadData->Index].State = HUD_STATE_LOADED_OK;
-	return 0;
+	int Result = -1;
+	LOG_DEBUG ( "Loading '%s'", DataFiles.Data[Index].Descriptor->Filename );
+	if ( LoadFileWithAssimp ( DataFiles.Data[Index].Descriptor->Filename, DataFiles.Data[Index].Descriptor ) == true )
+		{
+		mtx_lock ( &ResourceAccessMutex );
+		DataFiles.Data[Index].State = HUD_STATE_LOADED_OK;
+		mtx_unlock ( &ResourceAccessMutex );
+		Result = 0;
+		}
+	else
+		{
+		mtx_lock ( &ResourceAccessMutex );
+		DataFiles.Data[Index].State = HUB_STATE_LOADING_ERROR;
+		mtx_unlock ( &ResourceAccessMutex );
+		Result = -1;
+		}
+	free ( ThreadData );
+	LOG_DEBUG ( "Finished loading '%s'. Result %d", DataFiles.Data[Index].Descriptor->Filename, Result );
+	return Result;
 	}
 
 static int LoadTextureFileThreadFunction ( void *Param )
 	{
 	DataFileThreadData *ThreadData = ( DataFileThreadData * ) Param;
-	LOG_DEBUG ( "Loading '%s'", DataFiles.Data[ThreadData->Index].Descriptor->Filename );
+	const int Index = ThreadData->Index;
 
-	// load the texture
-	crTextureDescriptor *NewDescriptor = calloc ( 1, sizeof ( crTextureDescriptor ) );
-	if ( crLoadTextureDescriptorFromFile ( DataFiles.Data[ThreadData->Index].Descriptor->Filename, true, NewDescriptor ) == false )
+	mtx_lock ( &ResourceAccessMutex );
+	if ( ( Index < 0 ) || ( ( unsigned ) Index >= DataFiles.Capacity ) || ( DataFiles.Data[Index].State != HUB_STATE_QUEUED ) || ( DataFiles.Data[Index].Descriptor == NULL ) )
 		{
-		DataFiles.Data[ThreadData->Index].State = HUB_STATE_LOADING_ERROR;
-		free ( NewDescriptor );
+		mtx_unlock ( &ResourceAccessMutex );
+		free ( ThreadData );
 		return -1;
 		}
-	DataFiles.Data[ThreadData->Index].Descriptor->Textures = NewDescriptor;
-	DataFiles.Data[ThreadData->Index].Descriptor->TextureCount = 1;
-	DataFiles.Data[ThreadData->Index].State = HUD_STATE_LOADED_OK;
-	LOG_DEBUG ( "Finished loading '%s'", DataFiles.Data[ThreadData->Index].Descriptor->Filename );
-	return 0;
+
+	if ( DataFiles.Data[Index].Descriptor->Filename == NULL )
+		{
+		DataFiles.Data[Index].State = HUB_STATE_LOADING_ERROR;
+		mtx_unlock ( &ResourceAccessMutex );
+		free ( ThreadData );
+		return -1;
+		}
+
+	DataFiles.Data[Index].State = HUB_STATE_LOADING;
+	DataFileContentDescriptor *Descriptor = DataFiles.Data[Index].Descriptor;
+	mtx_unlock ( &ResourceAccessMutex );
+
+	int Result = -1;
+	LOG_DEBUG ( "Loading '%s'", DataFiles.Data[Index].Descriptor->Filename );
+	crTextureDescriptor *NewDescriptor = calloc ( 1, sizeof ( crTextureDescriptor ) );
+	if ( ( NewDescriptor != NULL ) && ( crLoadTextureDescriptorFromFile ( DataFiles.Data[Index].Descriptor->Filename, true, NewDescriptor ) == true ) )
+		{
+		mtx_lock ( &ResourceAccessMutex );
+		DataFiles.Data[Index].Descriptor->Textures = NewDescriptor;
+		DataFiles.Data[Index].Descriptor->TextureCount = 1;
+		DataFiles.Data[Index].State = HUD_STATE_LOADED_OK;
+		mtx_unlock ( &ResourceAccessMutex );
+		Result = 0;
+		}
+	else
+		{
+		free ( NewDescriptor );
+		mtx_lock ( &ResourceAccessMutex );
+		DataFiles.Data[Index].State = HUB_STATE_LOADING_ERROR;
+		mtx_unlock ( &ResourceAccessMutex );
+		Result = -1;
+		}
+	free ( ThreadData );
+	LOG_DEBUG ( "Finished loading '%s'. Result %d", DataFiles.Data[Index].Descriptor->Filename, Result );
+	return Result;
 	}
 
 bool ThreadedFileLoader_Initialize ( void )
@@ -129,6 +169,17 @@ void ThreadedFileLoader_Shutdown ( void )
 	ThreadPool_Destroy ( ResourceLoadingThreadpool );
 	ResourceLoadingThreadpool = NULL;
 	mtx_destroy ( &ResourceAccessMutex );
+	if ( DataFiles.Data != NULL )
+		{
+		for ( unsigned Index = 0; Index < DataFiles.Capacity; ++Index )
+			{
+			if ( DataFiles.Data[Index].Descriptor != NULL )
+				{
+				DestroyDataFileContentDescriptor ( DataFiles.Data[Index].Descriptor );
+				free ( DataFiles.Data[Index].Descriptor );
+				}
+			}
+		}
 	SAFE_DEL_C ( DataFiles.Data );
 	DataFiles.Capacity = DataFiles.Used = 0;
 	}
@@ -183,25 +234,35 @@ int ThreadedFileLoader_LoadFile ( const char *Filename )
 		}
 	DataFiles.Data[FreeIndex].Descriptor->Filename = strdup ( Filename );
 	DataFiles.Data[FreeIndex].State = HUB_STATE_QUEUED;
+	DataFiles.Data[FreeIndex].TaskID = -1;
 	++DataFiles.Used;
 
 	// allocate thread Data
 	DataFileThreadData *NewThreadData = ( DataFileThreadData * ) calloc ( 1, sizeof ( DataFileThreadData ) );
 	if ( NewThreadData == NULL )
 		{
+		ClearFileSlot ( FreeIndex );
 		mtx_unlock ( &ResourceAccessMutex );
 		return -1;
 		}
 	NewThreadData->Index = FreeIndex;
 
+	int TaskID = -1;
 	if ( IsValidModelFile ( Filename ) )
-		{
-		DataFiles.Data[FreeIndex].TaskID = ThreadPool_AddTask ( ResourceLoadingThreadpool, LoadAssimpFileThreadFunction, NewThreadData );
-		}
+		TaskID = ThreadPool_AddTask ( ResourceLoadingThreadpool, LoadAssimpFileThreadFunction, NewThreadData );
 	else if ( crIsValidTextureFile ( Filename ) )
+		TaskID = ThreadPool_AddTask ( ResourceLoadingThreadpool, LoadTextureFileThreadFunction, NewThreadData );
+
+	if ( TaskID < 0 )
 		{
-		DataFiles.Data[FreeIndex].TaskID = ThreadPool_AddTask ( ResourceLoadingThreadpool, LoadTextureFileThreadFunction, NewThreadData );
+		free ( NewThreadData );
+		ClearFileSlot ( FreeIndex );
+		mtx_unlock ( &ResourceAccessMutex );
+		return -1;
 		}
+
+	DataFiles.Data[FreeIndex].TaskID = TaskID;
+	NewThreadData->TaskID = TaskID;
 	LOG_DEBUG ( "Queued loading of '%s' to slot %u", Filename, FreeIndex );
 	mtx_unlock ( &ResourceAccessMutex );
 	return FreeIndex;
@@ -211,8 +272,10 @@ int ThreadedFileLoader_GetResourceFileIndex ( const char *Filename )
 	{
 	mtx_lock ( &ResourceAccessMutex );
 	int Result = -1;
-	for ( unsigned Index = 0; Index < DataFiles.Used; ++Index )
+	for ( unsigned Index = 0; Index < DataFiles.Capacity; ++Index )
 		{
+		if ( ( DataFiles.Data[Index].State == HUB_STATE_EMPTY ) || ( DataFiles.Data[Index].Descriptor == NULL ) || ( DataFiles.Data[Index].Descriptor->Filename == NULL ) )
+			continue;
 		if ( strcmp ( Filename, DataFiles.Data[Index].Descriptor->Filename ) == 0 )
 			{
 			Result = Index;
@@ -226,43 +289,50 @@ int ThreadedFileLoader_GetResourceFileIndex ( const char *Filename )
 void ThreadedFileLoader_UnloadResourceFile ( const int Index )
 	{
 	mtx_lock ( &ResourceAccessMutex );
-	if ( Index >= DataFiles.Capacity )
-		goto done;
-
-	switch ( DataFiles.Data[Index].State )
+	if ( ( Index < 0 ) || ( ( unsigned ) Index >= DataFiles.Capacity ) || ( DataFiles.Data[Index].State == HUB_STATE_EMPTY ) )
 		{
-		case HUB_STATE_EMPTY:
-			goto done;
-		case HUB_STATE_LOADING:
-			ThreadedFileLoader_WaitUntilAllLoaded();
-			// TODO
-			//if (Resources.Data[Index].TaskID != -1)
-			//	threadpool_wait_for_task(ResourceLoadingThreadpool, Resources.Data[Index].TaskID);
-			break;
-		case HUB_STATE_QUEUED:
-			if ( DataFiles.Data[Index].TaskID != -1 )
-				ThreadPool_CancelTask ( ResourceLoadingThreadpool, DataFiles.Data[Index].TaskID );
-			break;
+		mtx_unlock ( &ResourceAccessMutex );
+		return;
 		}
-	DestroyDataFileContentDescriptor ( DataFiles.Data[Index].Descriptor );
-	free ( DataFiles.Data[Index].Descriptor );
-	DataFiles.Data[Index].State = HUB_STATE_EMPTY;
-	DataFiles.Data[Index].TaskID = -1;
-done:
+
+	if ( ( DataFiles.Data[Index].State == HUB_STATE_QUEUED ) || ( DataFiles.Data[Index].State == HUB_STATE_LOADING ) )
+		{
+		mtx_unlock ( &ResourceAccessMutex );
+		ThreadedFileLoader_WaitUntilAllLoaded();
+		mtx_lock ( &ResourceAccessMutex );
+		}
+	if ( ( ( unsigned ) Index < DataFiles.Capacity ) && ( DataFiles.Data[Index].State != HUB_STATE_EMPTY ) )
+		ClearFileSlot ( Index );
 	mtx_unlock ( &ResourceAccessMutex );
 	}
 
 DataFileContentDescriptor *ThreadedFileLoader_GetFileContentDescriptor ( const int Index )
 	{
-	return DataFiles.Data[Index].Descriptor;
+	if ( ( Index < 0 ) || ( ResourceLoadingThreadpool == NULL ) )
+		return NULL;
+	mtx_lock ( &ResourceAccessMutex );
+	DataFileContentDescriptor *Result = NULL;
+	if ( ( unsigned ) Index < DataFiles.Capacity )
+		Result = DataFiles.Data[Index].Descriptor;
+	mtx_unlock ( &ResourceAccessMutex );
+	return Result;
 	}
 
 ThreadedFileLoader_State ThreadedFileLoader_GetFileLoadState ( const int Index )
 	{
-	return DataFiles.Data[Index].State;
+	if ( ( Index < 0 ) || ( ResourceLoadingThreadpool == NULL ) )
+		return HUB_STATE_EMPTY;
+	mtx_lock ( &ResourceAccessMutex );
+	ThreadedFileLoader_State Result = HUB_STATE_EMPTY;
+	if ( ( unsigned ) Index < DataFiles.Capacity )
+		Result = DataFiles.Data[Index].State;
+	mtx_unlock ( &ResourceAccessMutex );
+	return Result;
 	}
 
 bool ThreadedFileLoader_WaitUntilAllLoaded ( void )
 	{
+	if ( ResourceLoadingThreadpool == NULL )
+		return false;
 	return ThreadPool_WaitForAllTasks ( ResourceLoadingThreadpool );
 	}
