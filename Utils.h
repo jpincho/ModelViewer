@@ -2,7 +2,7 @@
 #include <stdbool.h>
 #include "BaseTransform.h"
 #include "ResourceLoading/MeshData.h"
-#include "ResourceLoading/Model.h"
+#include "ResourceLoading/ModelData.h"
 #include "ResourceLoading/ResourceHub.h"
 #include "ShaderCreator/ShaderCreator.h"
 #include <C_CrossRenderer/CrossRenderer.h>
@@ -21,3 +21,4 @@ bool BuildModelRenderData ( ModelRenderData *Output, const ModelData *InputModel
 void UpdateModelRenderData ( const ModelRenderData *RenderData, BaseTransformStruct *Transform, const float Scale, const mat4 ViewMatrix, const mat4 ProjectionMatrix );
 void DestroyModelRenderData ( ModelRenderData *RenderData );
 ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *ResourceName );
+void ComputeMeshTreeNodeWorldMatrices ( const MeshTreeNode *NodeTree, const unsigned NodeCount, mat4 *WorldMatrices );

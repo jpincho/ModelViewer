@@ -5,18 +5,6 @@
 #include <string.h>
 #include <Platform/Logger.h>
 
-static void ComputeNodeWorldMatrices ( const MeshTreeNode *NodeTree, const unsigned NodeCount, mat4 *WorldMatrices )
-	{
-	for ( unsigned NodeIndex = 0; NodeIndex < NodeCount; ++NodeIndex )
-		{
-		const mat4 LocalMatrix = NodeTree[NodeIndex].DefaultTransformationMatrix;
-		if ( NodeTree[NodeIndex].ParentNode < 0 )
-			math_mat4_copy ( &WorldMatrices[NodeIndex], LocalMatrix );
-		else
-			math_mat4_multiply ( &WorldMatrices[NodeIndex], WorldMatrices[NodeTree[NodeIndex].ParentNode], LocalMatrix );
-		}
-	}
-
 scShaderDefinition BuildShaderDefinitionForMeshData ( const MeshData *InputMeshData )
 	{
 	scShaderDefinition ShaderDefinition = { 0 };
@@ -82,10 +70,13 @@ bool BuildRenderCommandForMeshData ( crRenderCommand *Command, const MeshData *I
 	Command->InstanceCount = 1;
 	Command->Primitive = crTriangleList;
 	crSetRenderCommandShader ( Command, Shader );
-	crSetRenderCommandUniformFloat3Value ( Command, crGetShaderUniformHandle ( Shader, "MaterialDiffuse" ), InputMeshData->Material.Diffuse );
-	crSetRenderCommandUniformFloat3Value ( Command, crGetShaderUniformHandle ( Shader, "MaterialEmisive" ), InputMeshData->Material.Emissive );
-	crSetRenderCommandUniformFloatValue ( Command, crGetShaderUniformHandle ( Shader, "MaterialShininess" ), InputMeshData->Material.Shininess );
-	crSetRenderCommandUniformFloat3Value ( Command, crGetShaderUniformHandle ( Shader, "MaterialSpecular" ), InputMeshData->Material.Specular );
+	vec4 Diffuse = { InputMeshData->Material.Diffuse.x, InputMeshData->Material.Diffuse.y, InputMeshData->Material.Diffuse.z, 1.0f };
+	vec4 Emissive = { InputMeshData->Material.Emissive.x, InputMeshData->Material.Emissive.y, InputMeshData->Material.Emissive.z, 1.0f };
+	vec4 Specular = { InputMeshData->Material.Specular.x, InputMeshData->Material.Specular.y, InputMeshData->Material.Specular.z, 1.0f };
+	crSetRenderCommandUniformFloat4Value ( Command, crGetShaderUniformHandle ( Shader, scGetStandardMaterialUniformName ( MatTexType_Diffuse ) ), Diffuse );
+	crSetRenderCommandUniformFloat4Value ( Command, crGetShaderUniformHandle ( Shader, scGetStandardMaterialUniformName ( MatTexType_Emissive ) ), Emissive );
+	crSetRenderCommandUniformFloatValue ( Command, crGetShaderUniformHandle ( Shader, scGetStandardMaterialUniformName ( MatTexType_Shininess ) ), InputMeshData->Material.Shininess );
+	crSetRenderCommandUniformFloat4Value ( Command, crGetShaderUniformHandle ( Shader, scGetStandardMaterialUniformName ( MatTexType_Specular ) ), Specular );
 
 	crSetRenderCommandShaderBufferBinding ( Command, crGetShaderAttributeHandle ( Shader, scGetStandardAttributeName ( scAttribute_Position ) ), InputMeshData->PositionStream );
 	crSetRenderCommandShaderBufferBinding ( Command, crGetShaderAttributeHandle ( Shader, scGetStandardAttributeName ( scAttribute_TextureCoordinate ) ), InputMeshData->TexCoordStream );
@@ -140,10 +131,23 @@ bool BuildModelRenderData ( ModelRenderData *RenderData, const ModelData *InputM
 		{
 		for ( unsigned MeshIndex = 0; MeshIndex < InputModelData->NodeTree[NodeIndex].MeshIndexCount; ++MeshIndex )
 			{
-			MeshIndices[CurrentPosition] = InputModelData->NodeTree[NodeIndex].MeshIndices[MeshIndex];
+			const unsigned MeshArrayIndex = InputModelData->NodeTree[NodeIndex].MeshIndices[MeshIndex];
+			if ( MeshArrayIndex >= InputModelData->MeshCount )
+				{
+				LOG_ERROR ( "Node '%s' references invalid mesh index %u", InputModelData->NodeTree[NodeIndex].NodeName, MeshArrayIndex );
+				continue;
+				}
+			MeshIndices[CurrentPosition] = MeshArrayIndex;
 			RenderData->NodeIndices[CurrentPosition] = NodeIndex;
 			++CurrentPosition;
 			}
+		}
+
+	RenderData->Count = CurrentPosition;
+	if ( RenderData->Count == 0 )
+		{
+		DestroyModelRenderData ( RenderData );
+		return false;
 		}
 
 	for ( unsigned Index = 0; Index < RenderData->Count; ++Index )
@@ -170,7 +174,7 @@ void UpdateModelRenderData ( const ModelRenderData *RenderData, BaseTransformStr
 	math_mat4_multiply ( &ScaledGlobalMatrix, ScaleMatrix, GlobalMatrix );
 
 	mat4 *NodeWorldMatrices = alloca ( RenderData->OriginalModelData->NodeCount * sizeof ( mat4 ) );
-	ComputeNodeWorldMatrices ( RenderData->OriginalModelData->NodeTree, RenderData->OriginalModelData->NodeCount, NodeWorldMatrices );
+	ComputeMeshTreeNodeWorldMatrices ( RenderData->OriginalModelData->NodeTree, RenderData->OriginalModelData->NodeCount, NodeWorldMatrices );
 
 	for ( unsigned Index = 0; Index < RenderData->Count; ++Index )
 		{
@@ -291,7 +295,32 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 
 	ResourceHandle NewResource = ResourceHub_CreateEntry ( ResourceType_Model, ResourceName );
 	ResourceHub_SetModelDescriptor ( NewResource, &NewModelDescriptor );
-	DestroyDataFileContentDescriptor ( ModelFileData );
-	free ( ModelFileData );
+	ThreadedFileLoader_UnloadResourceFile ( FileIndex );
 	return NewResource;
+	}
+
+void ComputeMeshTreeNodeWorldMatrices ( const MeshTreeNode *NodeTree, const unsigned NodeCount, mat4 *WorldMatrices )
+	{
+	for ( unsigned Index = 0; Index < NodeCount; ++Index )
+		{
+		const int Parent = NodeTree[Index].ParentNode;
+		if ( Parent < 0 )
+			math_mat4_copy ( &WorldMatrices[Index], NodeTree[Index].DefaultTransformationMatrix );
+		else if ( ( unsigned ) Parent < Index )
+			math_mat4_multiply ( &WorldMatrices[Index], WorldMatrices[Parent], NodeTree[Index].DefaultTransformationMatrix );
+		else
+			{
+			mat4 Accumulated;
+			math_mat4_copy ( &Accumulated, NodeTree[Index].DefaultTransformationMatrix );
+			int Walk = Parent;
+			while ( Walk >= 0 )
+				{
+				mat4 Combined;
+				math_mat4_multiply ( &Combined, NodeTree[Walk].DefaultTransformationMatrix, Accumulated );
+				math_mat4_copy ( &Accumulated, Combined );
+				Walk = NodeTree[Walk].ParentNode;
+				}
+			math_mat4_copy ( &WorldMatrices[Index], Accumulated );
+			}
+		}
 	}
