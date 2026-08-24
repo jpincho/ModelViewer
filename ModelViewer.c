@@ -100,15 +100,15 @@ static bool InitializeRenderer ( void )
 	Callbacks.MouseMoved = MouseMoved_Callback;
 	crSetWindowManagerCallbacks ( Callbacks );
 
-	uvec2 WindowSize;
-	crGetWindowDimensions ( crGetMainWindowHandle(), &WindowSize );
+	uvec2 ClientAreaDimensions;
+	crGetWindowClientAreaDimensions ( crGetMainWindowHandle(), &ClientAreaDimensions );
 
 	crFramebufferDescriptor FramebufferDescriptor = { 0 };
 	FramebufferDescriptor.ColorAttachments = 1;
 	FramebufferDescriptor.ColorAttachmentFormat = crPixelFormat_RedGreenBlueAlpha8888;
 	FramebufferDescriptor.DepthEnabled = true;
 	FramebufferDescriptor.DepthFormat = crPixelFormat_DepthComponent;
-	FramebufferDescriptor.Dimensions = WindowSize;
+	FramebufferDescriptor.Dimensions = ClientAreaDimensions;
 	FramebufferDescriptor.ClearDepth = 1.0f;
 	math_vec4_set ( &FramebufferDescriptor.ClearColor, 0.5f, 0.5f, 0.5f, 1.0f );
 
