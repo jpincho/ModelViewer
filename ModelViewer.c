@@ -8,6 +8,10 @@
 #include "CameraInput.h"
 #include "Utils.h"
 #include "ResourceLoading/ResourceHub.h"
+#include "ResourceLoading/AABB.h"
+#if defined (PLATFORM_COMPILER_GNU)
+#include <alloca.h>
+#endif
 
 static crFramebufferHandle MainWindowFramebuffer = NULL;
 static CameraData MainCamera = {0};
@@ -147,13 +151,27 @@ static ResourceHandle LoadModel ( const char *Filename, const char *ResourceName
 	if ( Descriptor == NULL )
 		{
 		LOG_ERROR ( "Unable to retrieve model descriptor" );
-		return false;
+		return ResourceHandle_Invalid;
 		}
 	AABB_InitEmpty ( &Descriptor->AABBox );
-	for ( unsigned MeshIndex = 0; MeshIndex < Descriptor->MeshCount; ++MeshIndex )
+
+	// Calculate the bounding boxes for all the nodes in this model, using the tree and the matrices
+	if ( Descriptor->NodeCount != 0 )
 		{
-		AABB_IncludePoint ( &Descriptor->AABBox, Descriptor->Meshes[MeshIndex].BoundingBox.Min );
-		AABB_IncludePoint ( &Descriptor->AABBox, Descriptor->Meshes[MeshIndex].BoundingBox.Max );
+		mat4 *NodeWorldMatrices = alloca ( Descriptor->NodeCount * sizeof ( mat4 ) );
+		ComputeMeshTreeNodeWorldMatrices ( Descriptor->Nodes, Descriptor->NodeCount, NodeWorldMatrices );
+		for ( unsigned NodeIndex = 0; NodeIndex < Descriptor->NodeCount; ++NodeIndex )
+			{
+			for ( unsigned MeshIndex = 0; MeshIndex < Descriptor->Nodes[NodeIndex].MeshIndexCount; ++MeshIndex )
+				{
+				const unsigned MeshArrayIndex = Descriptor->Nodes[NodeIndex].MeshIndices[MeshIndex];
+				if ( MeshArrayIndex >= Descriptor->MeshCount )
+					continue;
+				AABB TransformedBox;
+				AABB_Transform ( &TransformedBox, &Descriptor->Meshes[MeshArrayIndex].BoundingBox, &NodeWorldMatrices[NodeIndex] );
+				AABB_Join ( &Descriptor->AABBox, &Descriptor->AABBox, &TransformedBox );
+				}
+			}
 		}
 	LOG_DEBUG ( "Model loaded" );
 	return Handle;

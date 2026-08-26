@@ -13,6 +13,7 @@
 #include <assimp/metadata.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdint.h>
 #include <malloc.h>
@@ -96,6 +97,23 @@ static enum aiTextureType translate_MaxTexType_to_aiTextureType ( const MatTexTy
 			break;
 		};
 	return aiTextureType_NONE;
+	}
+
+static enum aiTextureType fallback_aiTextureType ( const MatTexType TextureType )
+	{
+	switch ( TextureType )
+		{
+		case MatTexType_Diffuse:
+			return aiTextureType_BASE_COLOR;
+		case MatTexType_Normal:
+			return aiTextureType_NORMAL_CAMERA;
+		case MatTexType_Emissive:
+			return aiTextureType_EMISSION_COLOR;
+		case MatTexType_Lightmap:
+			return aiTextureType_AMBIENT_OCCLUSION;
+		default:
+			return aiTextureType_NONE;
+		}
 	}
 
 static void translate_aiMatrix4x4_to_mat4 ( const struct aiMatrix4x4 input, mat4 *output )
@@ -229,15 +247,15 @@ static void ApplyAssimpMetadataToRootNode ( MeshTreeNode *RootNode, const struct
 	LOG_DEBUG ( "Applied Assimp metadata correction (UpAxis=%d, FrontAxis=%d, CoordAxis=%d, UnitScaleFactor=%f)", UpAxis, FrontAxis, CoordAxis, ( float ) UnitScaleFactor );
 	}
 
-static void CountAssimpNodes ( const struct aiNode *CurrentAssimpNode, unsigned *count )
+static void CountAssimpNodes ( const struct aiNode *CurrentAssimpNode, unsigned *Count )
 	{
 	if ( CurrentAssimpNode == NULL )
 		return;
 
-	++ ( *count );
+	++ ( *Count );
 	for ( unsigned index = 0; index < CurrentAssimpNode->mNumChildren; ++index )
 		{
-		CountAssimpNodes ( CurrentAssimpNode->mChildren[index], count );
+		CountAssimpNodes ( CurrentAssimpNode->mChildren[index], Count );
 		}
 	}
 
@@ -280,10 +298,15 @@ static bool LoadAssimpMaterial ( const struct aiMaterial *AssimpMaterial, Materi
 	struct aiColor4D AssimpColor4;
 	float FloatValue;
 	struct aiString AssimpString;
-	if ( aiGetMaterialString ( AssimpMaterial, AI_MATKEY_NAME, &AssimpString ) != aiReturn_SUCCESS )
-		return false;
-
-	Descriptor->MaterialName = strdup ( AssimpString.data );
+	if ( aiGetMaterialString ( AssimpMaterial, AI_MATKEY_NAME, &AssimpString ) == aiReturn_SUCCESS )
+		Descriptor->MaterialName = strdup ( AssimpString.data );
+	else
+		{
+		char GeneratedName[64];
+		snprintf ( GeneratedName, sizeof ( GeneratedName ), "Material_%p", ( void * ) AssimpMaterial );
+		Descriptor->MaterialName = strdup ( GeneratedName );
+		LOG_WARNING ( "WARNING! Generated material name '%s'", GeneratedName );
+		}
 
 	if ( aiGetMaterialColor ( AssimpMaterial, AI_MATKEY_COLOR_DIFFUSE, &AssimpColor4 ) == AI_SUCCESS )
 		memcpy ( &Descriptor->Diffuse, &AssimpColor4, sizeof ( float ) * 3 );
@@ -292,13 +315,17 @@ static bool LoadAssimpMaterial ( const struct aiMaterial *AssimpMaterial, Materi
 	if ( aiGetMaterialColor ( AssimpMaterial, AI_MATKEY_COLOR_EMISSIVE, &AssimpColor4 ) == AI_SUCCESS )
 		memcpy ( &Descriptor->Emissive, &AssimpColor4, sizeof ( float ) * 3 );
 	if ( aiGetMaterialFloat ( AssimpMaterial, AI_MATKEY_SHININESS, &FloatValue ) == AI_SUCCESS )
-		Descriptor->Shininess = MIN ( 1.0f, FloatValue );
+		Descriptor->Shininess = FloatValue;
 
 	for ( unsigned TextureTypeIterator = 0; TextureTypeIterator < ( unsigned ) MatTexType_Count; ++TextureTypeIterator )
 		{
 		enum aiTextureType AssimpType = translate_MaxTexType_to_aiTextureType ( TextureTypeIterator );
 		if ( aiGetMaterialString ( AssimpMaterial, AI_MATKEY_TEXTURE ( AssimpType, 0 ), &AssimpString ) != AI_SUCCESS )
-			continue;
+			{
+			AssimpType = fallback_aiTextureType ( TextureTypeIterator );
+			if ( ( AssimpType == aiTextureType_NONE ) || ( aiGetMaterialString ( AssimpMaterial, AI_MATKEY_TEXTURE ( AssimpType, 0 ), &AssimpString ) != AI_SUCCESS ) )
+				continue;
+			}
 		Descriptor->Textures[TextureTypeIterator].TextureName = strdup ( AssimpString.data );
 		int hwrap, vwrap;
 		if ( ( aiGetMaterialInteger ( AssimpMaterial, AI_MATKEY_MAPPINGMODE_U ( AssimpType, 0 ), &hwrap ) == AI_SUCCESS ) &&
@@ -315,15 +342,23 @@ static bool LoadAssimpMaterial ( const struct aiMaterial *AssimpMaterial, Materi
 
 static bool LoadAssimpTexture ( const struct aiTexture *AssimpTexture, crTextureDescriptor *Descriptor )
 	{
+	memset ( Descriptor, 0, sizeof ( crTextureDescriptor ) );
 	Descriptor->Type = crTextureType_Texture2D;
 	if ( AssimpTexture->mFilename.length != 0 )
 		Descriptor->TextureName = strdup ( AssimpTexture->mFilename.data );
-	ASSERT_FAIL ( Descriptor->TextureName != NULL );
+	else
+		{
+		char GeneratedName[64];
+		snprintf ( GeneratedName, sizeof ( GeneratedName ), "Embedded_%p", ( void * ) AssimpTexture );
+		Descriptor->TextureName = strdup ( GeneratedName );
+		LOG_WARNING ( "WARNING! Generated texture name '%s'", GeneratedName );
+		}
+	if ( Descriptor->TextureName == NULL )
+		return false;
 
 	if ( ( strcmp ( AssimpTexture->achFormatHint, "rgba8888" ) == 0 ) ||
 	        ( strcmp ( AssimpTexture->achFormatHint, "argb8888" ) == 0 ) ||
-	        ( strcmp ( AssimpTexture->achFormatHint, "rgba5650" ) == 0 ) ||
-	        ( strcmp ( AssimpTexture->achFormatHint, "rgba0010" ) == 0 ) )
+	        ( strcmp ( AssimpTexture->achFormatHint, "rgba5650" ) == 0 ) )
 		{
 		Descriptor->Data = calloc ( AssimpTexture->mHeight * AssimpTexture->mWidth, sizeof ( struct aiTexel ) );
 		if ( Descriptor->Data == NULL )
@@ -336,7 +371,7 @@ static bool LoadAssimpTexture ( const struct aiTexture *AssimpTexture, crTexture
 			Descriptor->Format = crPixelFormat_RedGreenBlueAlpha8888;
 		else if ( strcmp ( AssimpTexture->achFormatHint, "argb8888" ) == 0 )
 			Descriptor->Format = crPixelFormat_AlphaRedGreenBlue8888;
-		else if ( strcmp ( AssimpTexture->achFormatHint, "rgba5650" ) == 0 )
+		else
 			Descriptor->Format = crPixelFormat_RedGreenBlue565;
 		}
 	else
@@ -441,34 +476,41 @@ static bool LoadAssimpMesh ( const struct aiMesh *AssimpMesh, MeshDescriptor *De
 		Descriptor->Bones = calloc ( Descriptor->BoneCount, sizeof ( MeshBone ) );
 		Descriptor->BoneWeights = calloc ( AssimpMesh->mNumVertices * MAX_BONE_WEIGHTS_PER_VERTEX, sizeof ( float ) );
 		Descriptor->BoneIndices = calloc ( AssimpMesh->mNumVertices * MAX_BONE_WEIGHTS_PER_VERTEX, sizeof ( uint32_t ) );
+		unsigned *NextWeightSlot = calloc ( AssimpMesh->mNumVertices, sizeof ( unsigned ) );
+		if ( ( Descriptor->Bones == NULL ) || ( Descriptor->BoneWeights == NULL ) || ( Descriptor->BoneIndices == NULL ) || ( NextWeightSlot == NULL ) )
+			{
+			SAFE_DEL_C ( NextWeightSlot );
+			return false;
+			}
 		for ( unsigned BoneIndex = 0; BoneIndex < AssimpMesh->mNumBones; ++BoneIndex )
 			{
 			struct aiBone *AssimpBone = AssimpMesh->mBones[BoneIndex];
 			if ( LoadAssimpBone ( AssimpBone, Descriptor->Bones + BoneIndex ) == false )
+				{
+				SAFE_DEL_C ( NextWeightSlot );
 				return false;
+				}
 
 			for ( unsigned WeightIndex = 0; WeightIndex < AssimpBone->mNumWeights; ++WeightIndex )
 				{
 				const struct aiVertexWeight *CurrentAssimpVertexWeight = &AssimpBone->mWeights[WeightIndex];
-				assert ( CurrentAssimpVertexWeight->mVertexId <= Descriptor->VertexCount );
-				bool Found = false;
-
-				for ( unsigned VertexWeightIndex = 0; VertexWeightIndex < MAX_BONE_WEIGHTS_PER_VERTEX; ++VertexWeightIndex )
+				if ( CurrentAssimpVertexWeight->mVertexId >= Descriptor->VertexCount )
 					{
-					if ( ( Descriptor->BoneWeights[CurrentAssimpVertexWeight->mVertexId * MAX_BONE_WEIGHTS_PER_VERTEX + VertexWeightIndex] == 0.0f ) &&
-					        ( Descriptor->BoneIndices[CurrentAssimpVertexWeight->mVertexId * MAX_BONE_WEIGHTS_PER_VERTEX + VertexWeightIndex] == 0 ) )
-						{
-						Found = true;
-						Descriptor->BoneWeights[CurrentAssimpVertexWeight->mVertexId * MAX_BONE_WEIGHTS_PER_VERTEX + VertexWeightIndex] = AssimpBone->mWeights[WeightIndex].mWeight;
-						Descriptor->BoneIndices[CurrentAssimpVertexWeight->mVertexId * MAX_BONE_WEIGHTS_PER_VERTEX + VertexWeightIndex] = BoneIndex;
-						break;
-						}
+					LOG_ERROR ( "Bone weight vertex id %u is out of range", CurrentAssimpVertexWeight->mVertexId );
+					continue;
 					}
-				assert ( Found == true );
+				const unsigned Slot = NextWeightSlot[CurrentAssimpVertexWeight->mVertexId];
+				if ( Slot >= MAX_BONE_WEIGHTS_PER_VERTEX )
+					{
+					LOG_ERROR ( "Max weight count per vertex exceeded at vertex %u", CurrentAssimpVertexWeight->mVertexId );
+					continue;
+					}
+				Descriptor->BoneWeights[CurrentAssimpVertexWeight->mVertexId * MAX_BONE_WEIGHTS_PER_VERTEX + Slot] = CurrentAssimpVertexWeight->mWeight;
+				Descriptor->BoneIndices[CurrentAssimpVertexWeight->mVertexId * MAX_BONE_WEIGHTS_PER_VERTEX + Slot] = BoneIndex;
+				NextWeightSlot[CurrentAssimpVertexWeight->mVertexId]++;
 				}
-
-			// TODO make sure the weights all add up to 1.0
 			}
+		SAFE_DEL_C ( NextWeightSlot );
 		}
 
 	Descriptor->BoundingBox.Min.x = AssimpMesh->mAABB.mMin.x;
@@ -539,6 +581,7 @@ bool LoadFileWithAssimp ( const char *Filename, DataFileContentDescriptor *FileD
 	AssimpImportFlags |= aiProcess_ImproveCacheLocality;
 	AssimpImportFlags |= aiProcess_FindInstances;// Search for duplicate meshes
 	AssimpImportFlags |= aiProcess_GenBoundingBoxes;
+	//AssimpImportFlags |= aiProcess_FlipUVs;
 	//AssimpImportFlags |= aiProcess_OptimizeMeshes;
 	//AssimpImportFlags |= aiProcess_OptimizeGraph;// Remove empty nodes
 
@@ -592,12 +635,6 @@ bool LoadFileWithAssimp ( const char *Filename, DataFileContentDescriptor *FileD
 			if ( LoadAssimpMaterial ( AssimpScene->mMaterials[MaterialIndex], &NewDescriptor ) == false )
 				continue;
 
-			if ( NewDescriptor.MaterialName == NULL )
-				{
-				//StringUtils::Format(NewMaterialDescriptor.Name, "__Material%03u__", MatIndex);
-				//LOG_WARNING("No material name provided. Assigning '%s'", NewMaterialDescriptor.Name.c_str());
-				}
-
 			// Check for embedded textures
 			for ( unsigned TextureTypeIterator = 0; TextureTypeIterator < ( unsigned ) MatTexType_Count; ++TextureTypeIterator )
 				{
@@ -607,7 +644,9 @@ bool LoadFileWithAssimp ( const char *Filename, DataFileContentDescriptor *FileD
 					{
 					int TextureIndex = atoi ( NewDescriptor.Textures[TextureTypeIterator].TextureName + 1 );
 					free ( NewDescriptor.Textures[TextureTypeIterator].TextureName );
-					NewDescriptor.Textures[TextureTypeIterator].TextureName = strdup ( FileData->Textures[TextureIndex].TextureName );
+					NewDescriptor.Textures[TextureTypeIterator].TextureName = NULL;
+					if ( ( TextureIndex >= 0 ) && ( ( unsigned ) TextureIndex < FileData->TextureCount ) && ( FileData->Textures[TextureIndex].TextureName != NULL ) )
+						NewDescriptor.Textures[TextureTypeIterator].TextureName = strdup ( FileData->Textures[TextureIndex].TextureName );
 					}
 				}
 			FileData->Materials[MaterialIndex] = NewDescriptor;
@@ -643,7 +682,11 @@ bool LoadFileWithAssimp ( const char *Filename, DataFileContentDescriptor *FileD
 					continue;
 					}
 				}
-			FileData->Meshes[MeshIndex].MaterialName = strdup ( FileData->Materials[AssimpScene->mMeshes[MeshIndex]->mMaterialIndex].MaterialName );
+			const unsigned MaterialIndex = AssimpScene->mMeshes[MeshIndex]->mMaterialIndex;
+			if ( ( MaterialIndex < FileData->MaterialCount ) && ( FileData->Materials[MaterialIndex].MaterialName != NULL ) )
+				FileData->Meshes[MeshIndex].MaterialName = strdup ( FileData->Materials[MaterialIndex].MaterialName );
+			else
+				FileData->Meshes[MeshIndex].MaterialName = NULL;
 			}
 		}
 
