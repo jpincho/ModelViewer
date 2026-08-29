@@ -81,8 +81,6 @@ ResourceHandle ResourceHub_CreateEntry ( const ResourceHub_Type Type, const char
 bool ResourceHub_DestroyEntry ( const ResourceHandle EntryHandle )
 	{
 	PointerListNode *Node = ( PointerListNode * ) EntryHandle;
-	if ( PointerList_Find ( &Entries, NULL, Node ) == NULL )
-		return false;
 	ResourceEntry *EntryData = ( ResourceEntry * ) PointerList_GetNodeData ( Node );
 
 	switch ( EntryData->Type )
@@ -128,6 +126,15 @@ bool ResourceHub_DestroyEntry ( const ResourceHandle EntryHandle )
 	free ( EntryData );
 	PointerList_DestroyNode ( &Entries, Node );
 	return true;
+	}
+
+void ResourceHub_DestroyAll ( void )
+	{
+	while ( PointerList_GetSize ( &Entries ) > 0 )
+		{
+		PointerListNode *NodeIterator = PointerList_GetFirst ( &Entries );
+		ResourceHub_DestroyEntry ( NodeIterator );
+		}
 	}
 
 bool ResourceHub_SetTextureDescriptor ( const ResourceHandle EntryHandle, const crTextureDescriptor *Descriptor )

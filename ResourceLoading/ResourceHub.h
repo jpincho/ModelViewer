@@ -23,6 +23,7 @@ typedef void *ResourceHandle;
 
 ResourceHandle ResourceHub_CreateEntry ( const ResourceHub_Type Type, const char *Name );
 bool ResourceHub_DestroyEntry ( const ResourceHandle EntryHandle );
+void ResourceHub_DestroyAll ( void );
 bool ResourceHub_SetTextureDescriptor ( const ResourceHandle EntryHandle, const crTextureDescriptor *Descriptor );
 crTextureDescriptor *ResourceHub_GetTextureDescriptor ( const ResourceHandle EntryHandle );
 crTextureHandle ResourceHub_GetTextureHandle ( const ResourceHandle EntryHandle );

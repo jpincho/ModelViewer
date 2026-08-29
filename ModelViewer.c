@@ -11,28 +11,80 @@
 #include "ResourceLoading/AABB.h"
 #if defined (PLATFORM_COMPILER_GNU)
 #include <alloca.h>
+#elif defined ( PLATFORM_COMPILER_MSVC )
+#include <Windows.h>
+#include <commdlg.h>
 #endif
 
 static crFramebufferHandle MainWindowFramebuffer = NULL;
-static CameraData MainCamera = {0};
+static CameraData MainCamera = { 0 };
 static bool ShouldQuit = false;
 static char *ModelFilename = NULL;
 static float ModelScale = 1.0f;
 static bool ForceRenderCommandUpdate = false;
 static ivec2 LastMousePosition;
 static bool HaveLastMousePosition = false;
+static ModelRenderData ModelCommands = { 0 };
 
 //#define TEST_FILENAME "/home/jpincho/Models/glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf"
 #define TEST_FILENAME "D:\\3DModels\\GLTF\\glTF-Sample-Models\\2.0\\DamagedHelmet\\glTF\\DamagedHelmet.gltf"
 
+static bool OpenFileDialog ( const char *InitialFolder, char **OutputFilename );
+static ResourceHandle LoadModel ( const char *Filename, const char *ResourceName, ModelRenderData *RenderData );
+static void ResetCamera ( CameraData *Camera );
+
 static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyCode KeyCode, const bool State )
 	{
+	static bool LeftCtrlPressed = false, RightCtrlPressed = false;
+	static bool OPressed = false;
+
 	edSendKeyStateChangedEvent ( Handle, KeyCode, State );
 	switch ( KeyCode )
 		{
 		case crKeyCode_Escape:
 			{
 			ShouldQuit = true;
+			break;
+			}
+		case crKeyCode_LeftControl:
+			{
+			LeftCtrlPressed = State;
+			break;
+			}
+		case crKeyCode_RightControl:
+			{
+			RightCtrlPressed = State;
+			break;
+			}
+		case crKeyCode_O:
+			{
+			if ( ( ( LeftCtrlPressed ) || ( RightCtrlPressed ) ) && ( State == true ) && ( OPressed == false ) )
+				{
+				char *SelectedFilename = NULL;
+				if ( OpenFileDialog ( NULL, &SelectedFilename ) == true )
+					{
+					ResourceHub_DestroyAll();
+					SAFE_DEL_C ( ModelCommands.Commands );
+					ModelCommands.Count = 0;
+					SAFE_DEL_C ( ModelCommands.NodeIndices );
+					ModelCommands.OriginalModelData = NULL;
+
+					ResourceHandle NewModelHandle = LoadModel ( SelectedFilename, "Model", &ModelCommands );
+					if ( NewModelHandle == ResourceHandle_Invalid )
+						{
+						free ( SelectedFilename );
+						LOG_ERROR ( "Unable to load model file" );
+						break;
+						}
+					ForceRenderCommandUpdate = true;
+					}
+				}
+			OPressed = State;
+			break;
+			}
+		case crKeyCode_R:
+			{
+			ResetCamera ( &MainCamera );
 			break;
 			}
 		}
@@ -79,6 +131,47 @@ static void WindowResized_Callback ( const crWindowHandle Handle, const uvec2 Ne
 	SetCameraPerspectiveParameters ( &MainCamera, MATH_PI_2, ( float ) ClientAreaDimensions.x / ( float ) ClientAreaDimensions.y, 0.1f, 1000.0f );
 	UpdateCameraMatrices ( &MainCamera );
 	ForceRenderCommandUpdate = true;
+	}
+
+static bool OpenFileDialog ( const char *InitialFolder, char **OutputFilename )
+	{
+	if ( OutputFilename == NULL )
+		return false;
+	*OutputFilename = calloc ( 1024, sizeof ( char ) );
+	if ( *OutputFilename == NULL )
+		return false;
+
+	OPENFILENAMEA FileInfo = { 0 };
+	FileInfo.lStructSize = sizeof ( FileInfo );
+	//FileInfo.hwndOwner = crGetMainWindowHandle();
+	//FileInfo.hInstance=NULL;
+	FileInfo.lpstrFilter = "All valid model files\0*.gltf;*.gltb\0GLTF Files\0*.gltf\0GLTB Files\0*.gltb\0\0\0";
+	//FileInfo.lpstrCustomFilter;
+	//FileInfo.nMaxCustFilter;
+	//FileInfo.nFilterIndex;
+	*OutputFilename[0] = 0;
+	FileInfo.lpstrFile = *OutputFilename;
+	FileInfo.nMaxFile = 1024;
+	//FileInfo.lpstrFileTitle;
+	//FileInfo.nMaxFileTitle;
+	FileInfo.lpstrInitialDir = InitialFolder;
+	FileInfo.lpstrTitle;
+	FileInfo.Flags = OFN_ENABLESIZING | OFN_FILEMUSTEXIST;
+	/*FileInfo.nFileOffset;
+	FileInfo.nFileExtension;
+	FileInfo.lpstrDefExt;
+	FileInfo.lCustData;
+	FileInfo.lpfnHook;
+	FileInfo.lpTemplateName;
+	FileInfo.lpEditInfo;
+	FileInfo.lpstrPrompt;
+	FileInfo.FlagsEx;*/
+	if ( GetOpenFileNameA ( &FileInfo ) == 0 )
+		{
+		free ( *OutputFilename );
+		return false;
+		}
+	return true;
 	}
 
 static bool InitializeRenderer ( void )
@@ -131,13 +224,16 @@ static bool InitializeCamera ( CameraData *Camera )
 
 	SetCameraPerspectiveParameters ( Camera, MATH_PI_2, ( float ) WindowSize.x / ( float ) WindowSize.y, 0.1f, 1000.0f );
 	SetCameraOrientation ( Camera, MATH_QUAT_IDENTITY );
-	SetCameraPosition ( Camera, ( vec3 ) { 0.0f, 0.0f, 4.0f } );
+	SetCameraPosition ( Camera, ( vec3 )
+		{
+		0.0f, 0.0f, 4.0f
+		} );
 	UpdateCameraMatrices ( Camera );
 
 	return true;
 	}
 
-static ResourceHandle LoadModel ( const char *Filename, const char *ResourceName )
+static ResourceHandle LoadModel ( const char *Filename, const char *ResourceName, ModelRenderData *RenderData )
 	{
 	LOG_DEBUG ( "Loading model from '%s'", Filename );
 
@@ -175,14 +271,30 @@ static ResourceHandle LoadModel ( const char *Filename, const char *ResourceName
 			}
 		}
 	LOG_DEBUG ( "Model loaded" );
+	ModelData *LoadedModelData = ResourceHub_GetModelData ( Handle );
+
+	if ( BuildModelRenderData ( RenderData, LoadedModelData ) == false )
+		return ResourceHandle_Invalid;
+
 	return Handle;
+	}
+
+static void ResetCamera ( CameraData *Camera )
+	{
+	uvec2 WindowSize;
+	crGetWindowClientAreaDimensions ( crGetMainWindowHandle(), &WindowSize );
+
+	SetCameraPerspectiveParameters ( Camera, MATH_PI_2, ( float ) WindowSize.x / ( float ) WindowSize.y, 0.1f, 1000.0f );
+	SetCameraOrientation ( Camera, MATH_QUAT_IDENTITY );
+	SetCameraPosition ( Camera, ( vec3 )
+		{
+		0.0f, 0.0f, 4.0f
+		} );
 	}
 
 int main ( int argc, char *argv[] )
 	{
-	BaseTransformStruct ModelBaseTransform = {0};
-	ModelRenderData ModelCommands = {0};
-	ModelData *LoadedModelData = NULL;
+	BaseTransformStruct ModelBaseTransform = { 0 };
 	ResourceHandle LoadedModelHandle = ResourceHandle_Invalid;
 
 	if ( InitializeRenderer() == false )
@@ -194,12 +306,8 @@ int main ( int argc, char *argv[] )
 	math_vec3_set ( &ModelBaseTransform.Position, 0.0f, 0.0f, 0.0f );
 	ModelBaseTransform.Orientation = MATH_QUAT_IDENTITY;
 	UpdateCachedValues ( &ModelBaseTransform );
-	LoadedModelHandle = LoadModel ( TEST_FILENAME, "Model" );
+	LoadedModelHandle = LoadModel ( TEST_FILENAME, "Model", &ModelCommands );
 	if ( LoadedModelHandle == ResourceHandle_Invalid )
-		return -1;
-	LoadedModelData = ResourceHub_GetModelData ( LoadedModelHandle );
-
-	if ( BuildModelRenderData ( &ModelCommands, LoadedModelData ) == false )
 		return -1;
 	UpdateModelRenderData ( &ModelCommands, &ModelBaseTransform, ModelScale, MainCamera.CachedValues.ViewMatrix, MainCamera.CachedValues.ProjectionMatrix );
 
@@ -226,7 +334,7 @@ int main ( int argc, char *argv[] )
 			UpdateCameraMatrices ( &MainCamera );
 		if ( ModelTransformDirty )
 			UpdateCachedValues ( &ModelBaseTransform );
-		if ( ModelTransformDirty || CameraTransformDirty || ForceRenderCommandUpdate )
+		if ( ( ModelTransformDirty || CameraTransformDirty || ForceRenderCommandUpdate ) && ( ModelCommands.Commands != NULL ) )
 			{
 			UpdateModelRenderData ( &ModelCommands, &ModelBaseTransform, ModelScale, MainCamera.CachedValues.ViewMatrix, MainCamera.CachedValues.ProjectionMatrix );
 			ForceRenderCommandUpdate = false;
@@ -245,7 +353,7 @@ int main ( int argc, char *argv[] )
 
 		crDisplayFramebuffer ( MainWindowFramebuffer, crGetMainWindowHandle() );
 		crDisplayWindow ( crGetMainWindowHandle() );
-		crUpdateWindows ();
+		crUpdateWindows();
 		}
 
 	DestroyModelRenderData ( &ModelCommands );
