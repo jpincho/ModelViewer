@@ -47,7 +47,7 @@ static ResourceEntry *GetResourceEntryFromHandle ( const ResourceHandle Handle )
 	if ( Handle == NULL )
 		return NULL;
 	PointerListNode *Node = ( PointerListNode * ) Handle;
-	ResourceEntry *EntryData = ( ResourceEntry* ) PointerList_GetNodeData ( Node );
+	ResourceEntry *EntryData = ( ResourceEntry * ) PointerList_GetNodeData ( Node );
 	return EntryData;
 	}
 
@@ -63,6 +63,7 @@ static const char *Stringify_ResourceHub_Type ( const ResourceHub_Type Value )
 			STRINGIFY ( Shader );
 #undef STRINGIFY
 		}
+	return "";
 	}
 
 ResourceHandle ResourceHub_CreateEntry ( const ResourceHub_Type Type, const char *Name )
@@ -80,7 +81,9 @@ ResourceHandle ResourceHub_CreateEntry ( const ResourceHub_Type Type, const char
 bool ResourceHub_DestroyEntry ( const ResourceHandle EntryHandle )
 	{
 	PointerListNode *Node = ( PointerListNode * ) EntryHandle;
-	ResourceEntry *EntryData = ( ResourceEntry* ) PointerList_GetNodeData ( Node );
+	if ( PointerList_Find ( &Entries, NULL, Node ) == NULL )
+		return false;
+	ResourceEntry *EntryData = ( ResourceEntry * ) PointerList_GetNodeData ( Node );
 
 	switch ( EntryData->Type )
 		{

@@ -5,14 +5,19 @@ set ( CMAKE_C_STANDARD_REQUIRED ON )
 
 list ( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/ExternalModules/CMakeUtils )
 include ( target_warning_options )
+include ( localpackage )
+
+find_local_package ( Assimp QUIET )
+if ( NOT ASSIMP_FOUND )
+install_local_package ( Assimp )
+endif()
+install_local_packages()
 
 include_directories (ExternalModules)
 add_subdirectory ( ExternalModules/Platform )
 add_subdirectory ( ExternalModules/Math )
 add_subdirectory ( ExternalModules/C_CrossRenderer )
 add_subdirectory ( ShaderCreator )
-
-find_package ( assimp REQUIRED )
 
 file ( GLOB SOURCE_FILES "*.c" "*.h" "ResourceLoading/*.h" "ResourceLoading/*.c" )
 add_executable ( ModelViewer ${SOURCE_FILES} )

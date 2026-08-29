@@ -14,7 +14,7 @@ typedef struct
 	struct
 		{
 		mat4 ProjectionMatrix, ViewMatrix, ViewProjectionMatrix;
-		}CachedValues;
+		} CachedValues;
 	} CameraData;
 
 void SetCameraPosition ( CameraData *Camera, const vec3 NewPosition );

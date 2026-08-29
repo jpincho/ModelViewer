@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <Platform/Logger.h>
+#include <Platform/Platform.h>
 
 scShaderDefinition BuildShaderDefinitionForMeshData ( const MeshData *InputMeshData )
 	{
@@ -220,7 +221,7 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 
 	char *OwningPath = alloca ( strlen ( Filename ) + 1 );
 	strcpy ( OwningPath, Filename );
-	char *LastSlash = strrchr ( OwningPath, '/' );
+	char *LastSlash = strrchr ( OwningPath, PLATFORM_PATH_SEPARATOR);
 	if ( LastSlash != NULL )
 		*LastSlash = 0;
 
@@ -233,7 +234,7 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 		for ( unsigned Type = 0; Type < MatTexType_Count; ++Type )
 			{
 			if ( ModelFileData->Materials[MaterialIndex].Textures[Type].TextureName == NULL ) continue;
-			snprintf ( FullTexturePath, sizeof ( FullTexturePath ), "%s/%s", OwningPath, ModelFileData->Materials[MaterialIndex].Textures[Type].TextureName );
+			snprintf ( FullTexturePath, sizeof ( FullTexturePath ), "%s%c%s", OwningPath, PLATFORM_PATH_SEPARATOR, ModelFileData->Materials[MaterialIndex].Textures[Type].TextureName );
 			ThreadedFileLoader_LoadFile ( FullTexturePath );
 			}
 		}
@@ -244,7 +245,7 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 		for ( unsigned Type = 0; Type < MatTexType_Count; ++Type )
 			{
 			if ( ModelFileData->Materials[MaterialIndex].Textures[Type].TextureName == NULL ) continue;
-			snprintf ( FullTexturePath, sizeof ( FullTexturePath ), "%s/%s", OwningPath, ModelFileData->Materials[MaterialIndex].Textures[Type].TextureName );
+			snprintf ( FullTexturePath, sizeof ( FullTexturePath ), "%s%c%s", OwningPath, PLATFORM_PATH_SEPARATOR, ModelFileData->Materials[MaterialIndex].Textures[Type].TextureName );
 
 			// TODO Wait for texture finished loading here
 			int FileIndex = ThreadedFileLoader_GetResourceFileIndex ( FullTexturePath );

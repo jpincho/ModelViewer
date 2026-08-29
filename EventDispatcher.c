@@ -24,7 +24,7 @@ void edSendWindowClosedEvent ( const crWindowHandle WindowHandle )
 	NewEvent.EventType = edWindowEventType_WindowClosed;
 	for ( PointerListNode *Node = PointerList_GetFirst ( &EventListeners ); Node != NULL; Node = PointerList_GetNextNode ( Node ) )
 		{
-		edWindowEventListenerCallback Callback = PointerList_GetNodeData ( Node );
+		edWindowEventListenerCallback Callback = ( edWindowEventListenerCallback ) PointerList_GetNodeData ( Node );
 		Callback ( NewEvent );
 		}
 	}
@@ -38,7 +38,7 @@ void edSendKeyStateChangedEvent ( const crWindowHandle WindowHandle, const crKey
 	NewEvent.EventData.KeyStateChanged.State = NewState;
 	for ( PointerListNode *Node = PointerList_GetFirst ( &EventListeners ); Node != NULL; Node = PointerList_GetNextNode ( Node ) )
 		{
-		edWindowEventListenerCallback Callback = PointerList_GetNodeData ( Node );
+		edWindowEventListenerCallback Callback = ( edWindowEventListenerCallback ) PointerList_GetNodeData ( Node );
 		Callback ( NewEvent );
 		}
 	}
@@ -52,7 +52,7 @@ void edSendMouseMovedEvent ( const crWindowHandle WindowHandle, const ivec2 NewP
 	NewEvent.EventData.MouseMoved.Delta = Delta;
 	for ( PointerListNode *Node = PointerList_GetFirst ( &EventListeners ); Node != NULL; Node = PointerList_GetNextNode ( Node ) )
 		{
-		edWindowEventListenerCallback Callback = PointerList_GetNodeData ( Node );
+		edWindowEventListenerCallback Callback = ( edWindowEventListenerCallback ) PointerList_GetNodeData ( Node );
 		Callback ( NewEvent );
 		}
 	}
@@ -66,7 +66,7 @@ void edSendMouseButtonStateChangedEvent ( const crWindowHandle WindowHandle, con
 	NewEvent.EventData.MouseButtonStateChanged.State = State;
 	for ( PointerListNode *Node = PointerList_GetFirst ( &EventListeners ); Node != NULL; Node = PointerList_GetNextNode ( Node ) )
 		{
-		edWindowEventListenerCallback Callback = PointerList_GetNodeData ( Node );
+		edWindowEventListenerCallback Callback = ( edWindowEventListenerCallback ) PointerList_GetNodeData ( Node );
 		Callback ( NewEvent );
 		}
 	}
@@ -79,7 +79,7 @@ void edSendMouseWheelEvent ( const crWindowHandle WindowHandle, const int Amount
 	NewEvent.EventData.MouseWheel.Amount = Amount;
 	for ( PointerListNode *Node = PointerList_GetFirst ( &EventListeners ); Node != NULL; Node = PointerList_GetNextNode ( Node ) )
 		{
-		edWindowEventListenerCallback Callback = PointerList_GetNodeData ( Node );
+		edWindowEventListenerCallback Callback = ( edWindowEventListenerCallback ) PointerList_GetNodeData ( Node );
 		Callback ( NewEvent );
 		}
 	}

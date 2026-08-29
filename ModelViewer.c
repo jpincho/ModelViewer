@@ -22,8 +22,8 @@ static bool ForceRenderCommandUpdate = false;
 static ivec2 LastMousePosition;
 static bool HaveLastMousePosition = false;
 
-//#define TEST_FILENAME "/home/jpincho/Models/glTF-Sample-Models/2.0/AnimatedCube/glTF/AnimatedCube.gltf"
-#define TEST_FILENAME "/home/jpincho/Models/glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf"
+//#define TEST_FILENAME "/home/jpincho/Models/glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf"
+#define TEST_FILENAME "D:\\3DModels\\GLTF\\glTF-Sample-Models\\2.0\\DamagedHelmet\\glTF\\DamagedHelmet.gltf"
 
 static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyCode KeyCode, const bool State )
 	{
@@ -93,6 +93,7 @@ static bool InitializeRenderer ( void )
 	Configuration.InitialWindowDescriptor.Size.y = 1080;
 	Configuration.InitialWindowDescriptor.Resizable = true;
 	Configuration.InitialWindowDescriptor.Title = "Model viewer";
+	Configuration.DepthBits = 24;
 	Configuration.VSyncEnabled = true;
 	if ( crInitialize ( Configuration ) == false )
 		return false;

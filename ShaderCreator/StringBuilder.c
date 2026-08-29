@@ -7,6 +7,9 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+#elif defined ( PLATFORM_COMPILER_MSVC )
+#include <stdarg.h>
+#include <string.h>
 #endif
 
 bool StringBuilder_Initialize ( StringBuilder *Builder )
