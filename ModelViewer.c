@@ -11,10 +11,9 @@
 #include "ResourceLoading/AABB.h"
 #if defined (PLATFORM_COMPILER_GNU)
 #include <alloca.h>
-#elif defined ( PLATFORM_COMPILER_MSVC )
-#include <Windows.h>
-#include <commdlg.h>
 #endif
+
+#include <nfd.h>
 
 static crFramebufferHandle MainWindowFramebuffer = NULL;
 static CameraData MainCamera = { 0 };
@@ -26,10 +25,12 @@ static ivec2 LastMousePosition;
 static bool HaveLastMousePosition = false;
 static ModelRenderData ModelCommands = { 0 };
 
-//#define TEST_FILENAME "/home/jpincho/Models/glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf"
+#if defined (PLATFORM_LINUX)
+#define TEST_FILENAME "/home/jpincho/Models/glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf"
+#elif defined (PLATFORM_WINDOWS)
 #define TEST_FILENAME "D:\\3DModels\\GLTF\\glTF-Sample-Models\\2.0\\DamagedHelmet\\glTF\\DamagedHelmet.gltf"
+#endif
 
-static bool OpenFileDialog ( const char *InitialFolder, char **OutputFilename );
 static ResourceHandle LoadModel ( const char *Filename, const char *ResourceName, ModelRenderData *RenderData );
 static void ResetCamera ( CameraData *Camera );
 
@@ -61,7 +62,8 @@ static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyC
 			if ( ( ( LeftCtrlPressed ) || ( RightCtrlPressed ) ) && ( State == true ) && ( OPressed == false ) )
 				{
 				char *SelectedFilename = NULL;
-				if ( OpenFileDialog ( NULL, &SelectedFilename ) == true )
+				nfdresult_t result = NFD_OpenDialog ( "gltf;glb", TEST_FILENAME, &SelectedFilename );
+				if ( result == NFD_OKAY )
 					{
 					ResourceHub_DestroyAll();
 					SAFE_DEL_C ( ModelCommands.Commands );
@@ -70,13 +72,21 @@ static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyC
 					ModelCommands.OriginalModelData = NULL;
 
 					ResourceHandle NewModelHandle = LoadModel ( SelectedFilename, "Model", &ModelCommands );
+					free ( SelectedFilename );
 					if ( NewModelHandle == ResourceHandle_Invalid )
 						{
-						free ( SelectedFilename );
 						LOG_ERROR ( "Unable to load model file" );
 						break;
 						}
 					ForceRenderCommandUpdate = true;
+					}
+				else if ( result == NFD_CANCEL )
+					{
+					puts ( "User pressed cancel." );
+					}
+				else
+					{
+					printf ( "Error: %s\n", NFD_GetError() );
 					}
 				}
 			OPressed = State;
@@ -131,47 +141,6 @@ static void WindowResized_Callback ( const crWindowHandle Handle, const uvec2 Ne
 	SetCameraPerspectiveParameters ( &MainCamera, MATH_PI_2, ( float ) ClientAreaDimensions.x / ( float ) ClientAreaDimensions.y, 0.1f, 1000.0f );
 	UpdateCameraMatrices ( &MainCamera );
 	ForceRenderCommandUpdate = true;
-	}
-
-static bool OpenFileDialog ( const char *InitialFolder, char **OutputFilename )
-	{
-	if ( OutputFilename == NULL )
-		return false;
-	*OutputFilename = calloc ( 1024, sizeof ( char ) );
-	if ( *OutputFilename == NULL )
-		return false;
-
-	OPENFILENAMEA FileInfo = { 0 };
-	FileInfo.lStructSize = sizeof ( FileInfo );
-	//FileInfo.hwndOwner = crGetMainWindowHandle();
-	//FileInfo.hInstance=NULL;
-	FileInfo.lpstrFilter = "All valid model files\0*.gltf;*.gltb\0GLTF Files\0*.gltf\0GLTB Files\0*.gltb\0\0\0";
-	//FileInfo.lpstrCustomFilter;
-	//FileInfo.nMaxCustFilter;
-	//FileInfo.nFilterIndex;
-	*OutputFilename[0] = 0;
-	FileInfo.lpstrFile = *OutputFilename;
-	FileInfo.nMaxFile = 1024;
-	//FileInfo.lpstrFileTitle;
-	//FileInfo.nMaxFileTitle;
-	FileInfo.lpstrInitialDir = InitialFolder;
-	FileInfo.lpstrTitle;
-	FileInfo.Flags = OFN_ENABLESIZING | OFN_FILEMUSTEXIST;
-	/*FileInfo.nFileOffset;
-	FileInfo.nFileExtension;
-	FileInfo.lpstrDefExt;
-	FileInfo.lCustData;
-	FileInfo.lpfnHook;
-	FileInfo.lpTemplateName;
-	FileInfo.lpEditInfo;
-	FileInfo.lpstrPrompt;
-	FileInfo.FlagsEx;*/
-	if ( GetOpenFileNameA ( &FileInfo ) == 0 )
-		{
-		free ( *OutputFilename );
-		return false;
-		}
-	return true;
 	}
 
 static bool InitializeRenderer ( void )

@@ -13,3 +13,6 @@
 [submodule "ExternalModules/CMakeUtils"]
 	path = ExternalModules/CMakeUtils
 	url = git@github.com:jpincho/CMakeUtils
+[submodule "ExternalModules/nativefiledialog"]
+	path = ExternalModules/nativefiledialog
+	url = https://github.com/mlabbe/nativefiledialog

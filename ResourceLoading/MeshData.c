@@ -3,6 +3,16 @@
 
 bool BuildMeshDataFromDescriptor ( const MeshDescriptor Descriptor, MeshData *Data )
 	{
+	Data->BoneCount = Descriptor.BoneCount;
+	Data->Primitive = crTriangleList;
+
+	if ( Descriptor.IndexCount != 0 )
+		Data->VertexCount = Descriptor.IndexCount;
+	else if ( Descriptor.VertexCount != 0 )
+		Data->VertexCount = Descriptor.VertexCount;
+	else
+		return false;
+
 	crShaderBufferDescriptor PositionBufferDescriptor = { 0 };
 	PositionBufferDescriptor.AccessType = crShaderBufferAccessType_Static;
 	PositionBufferDescriptor.BufferType = crShaderBufferType_Array;
@@ -108,16 +118,6 @@ bool BuildMeshDataFromDescriptor ( const MeshDescriptor Descriptor, MeshData *Da
 	else
 		Data->BoneWeight = crShaderBufferHandle_Invalid;
 
-	Data->BoneCount = Descriptor.BoneCount;
-	Data->VertexCount = ( Descriptor.IndexCount != 0 ? Descriptor.IndexCount : Descriptor.VertexCount );
-	Data->Primitive = crTriangleList;
-
-	if ( Descriptor.IndexCount != 0 )
-		Data->VertexCount = Descriptor.IndexCount;
-	else if ( Descriptor.VertexCount != 0 )
-		Data->VertexCount = Descriptor.VertexCount;
-	else
-		return false;
 
 	// Create the streams, if not previously created
 	if ( ( !Data->PositionStream.BufferHandle ) && ( Data->Position ) )

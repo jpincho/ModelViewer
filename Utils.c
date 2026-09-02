@@ -13,7 +13,7 @@ scShaderDefinition BuildShaderDefinitionForMeshData ( const MeshData *InputMeshD
 	// Where to get diffuse component from
 	if ( ( InputMeshData->Material.Textures[MatTexType_Diffuse].Handle != crTextureHandle_Invalid ) && ( InputMeshData->TexCoordStream.BufferHandle != crShaderBufferHandle_Invalid ) )
 		ShaderDefinition.DiffuseSource = scSource_Texture;
-	else if ( InputMeshData->Color != crShaderHandle_Invalid )
+	else if ( InputMeshData->Color != crShaderBufferHandle_Invalid )
 		ShaderDefinition.DiffuseSource = scSource_Attribute;
 	else
 		ShaderDefinition.DiffuseSource = scSource_Uniform;
@@ -21,7 +21,7 @@ scShaderDefinition BuildShaderDefinitionForMeshData ( const MeshData *InputMeshD
 	// Where to get specular component from
 	if ( ( InputMeshData->Material.Textures[MatTexType_Specular].Handle != crTextureHandle_Invalid ) && ( InputMeshData->TexCoordStream.BufferHandle != crShaderBufferHandle_Invalid ) )
 		ShaderDefinition.SpecularSource = scSource_Texture;
-	else if ( InputMeshData->Color != crShaderHandle_Invalid )
+	else if ( InputMeshData->Color != crShaderBufferHandle_Invalid )
 		ShaderDefinition.SpecularSource = scSource_Attribute;
 	else
 		ShaderDefinition.SpecularSource = scSource_Uniform;
@@ -29,7 +29,7 @@ scShaderDefinition BuildShaderDefinitionForMeshData ( const MeshData *InputMeshD
 	// Where to get specular shininess factor from
 	if ( ( InputMeshData->Material.Textures[MatTexType_Shininess].Handle != crTextureHandle_Invalid ) && ( InputMeshData->TexCoordStream.BufferHandle != crShaderBufferHandle_Invalid ) )
 		ShaderDefinition.ShininessSource = scSource_Texture;
-	else if ( InputMeshData->Color != crShaderHandle_Invalid )
+	else if ( InputMeshData->Color != crShaderBufferHandle_Invalid )
 		ShaderDefinition.ShininessSource = scSource_Attribute;
 	else
 		ShaderDefinition.ShininessSource = scSource_Uniform;
@@ -37,7 +37,7 @@ scShaderDefinition BuildShaderDefinitionForMeshData ( const MeshData *InputMeshD
 	// Where to get emissiveness component from
 	if ( ( InputMeshData->Material.Textures[MatTexType_Emissive].Handle != crTextureHandle_Invalid ) && ( InputMeshData->TexCoordStream.BufferHandle != crShaderBufferHandle_Invalid ) )
 		ShaderDefinition.EmissivenessSource = scSource_Texture;
-	else if ( InputMeshData->Color != crShaderHandle_Invalid )
+	else if ( InputMeshData->Color != crShaderBufferHandle_Invalid )
 		ShaderDefinition.EmissivenessSource = scSource_Attribute;
 	else
 		ShaderDefinition.EmissivenessSource = scSource_Uniform;
@@ -45,7 +45,7 @@ scShaderDefinition BuildShaderDefinitionForMeshData ( const MeshData *InputMeshD
 	// Where to get normal vector from
 	if ( ( InputMeshData->Material.Textures[MatTexType_Normal].Handle != crTextureHandle_Invalid ) && ( InputMeshData->TexCoordStream.BufferHandle != crShaderBufferHandle_Invalid ) ) // && (InputMeshData->BitangentStream.BufferHandle!=crShaderBufferHandle_Invalid) && (InputMeshData->TangentStream.BufferHandle != crShaderBufferHandle_Invalid))
 		ShaderDefinition.NormalSource = scSource_Texture;
-	else if ( InputMeshData->Normal != crShaderHandle_Invalid )
+	else if ( InputMeshData->Normal != crShaderBufferHandle_Invalid )
 		ShaderDefinition.NormalSource = scSource_Attribute;
 	else
 		ShaderDefinition.NormalSource = scSource_Off;
@@ -226,7 +226,9 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 		*LastSlash = 0;
 
 	DataFileContentDescriptor *ModelFileData = ThreadedFileLoader_GetFileContentDescriptor ( FileIndex );
-
+	if ( ModelFileData == NULL )
+		return ResourceHandle_Invalid;
+		
 	char FullTexturePath[1024];
 	// Load all external textures that are referenced..
 	for ( unsigned MaterialIndex = 0; MaterialIndex < ModelFileData->MaterialCount; ++MaterialIndex )

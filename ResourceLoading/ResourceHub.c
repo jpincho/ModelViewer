@@ -63,7 +63,7 @@ static const char *Stringify_ResourceHub_Type ( const ResourceHub_Type Value )
 			STRINGIFY ( Shader );
 #undef STRINGIFY
 		}
-	return "";
+	return "Unhandled enum value";
 	}
 
 ResourceHandle ResourceHub_CreateEntry ( const ResourceHub_Type Type, const char *Name )
