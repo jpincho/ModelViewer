@@ -1,5 +1,5 @@
 #include "ModelData.h"
-#include <Platform/defines.h>
+#include <Platform/Platform.h>
 
 void DestroyModelData ( ModelData *Data )
 	{

@@ -1,5 +1,5 @@
 #pragma once
-#include <Platform/defines.h>
+#include <Platform/Platform.h>
 #include <Math/mathlib.h>
 #include <C_CrossRenderer/CrossRenderer.h>
 #include "AABB.h"

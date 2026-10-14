@@ -1,5 +1,5 @@
 #pragma once
-#include <Platform/defines.h>
+#include <Platform/Platform.h>
 #include "ModelDescriptor.h"
 #include "MeshDescriptor.h"
 #include "MaterialDescriptor.h"

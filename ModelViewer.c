@@ -2,6 +2,7 @@
 #include <Platform/PlatformTime.h>
 #include <Platform/Logger.h>
 #include <C_CrossRenderer/CrossRenderer.h>
+#include <CrossUI/CrossUI.h>
 #include "EventDispatcher.h"
 #include "ModelViewer.h"
 #include "Camera.h"
@@ -13,8 +14,6 @@
 #include <alloca.h>
 #endif
 
-#include <nfd.h>
-
 static crFramebufferHandle MainWindowFramebuffer = NULL;
 static CameraData MainCamera = { 0 };
 static bool ShouldQuit = false;
@@ -25,11 +24,7 @@ static ivec2 LastMousePosition;
 static bool HaveLastMousePosition = false;
 static ModelRenderData ModelCommands = { 0 };
 
-#if defined (PLATFORM_LINUX)
-#define TEST_FILENAME "/home/jpincho/Models/glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf"
-#elif defined (PLATFORM_WINDOWS)
-#define TEST_FILENAME "D:\\3DModels\\GLTF\\glTF-Sample-Models\\2.0\\DamagedHelmet\\glTF\\DamagedHelmet.gltf"
-#endif
+#define TEST_FILENAME MODEL_PATH "glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf"
 
 static ResourceHandle LoadModel ( const char *Filename, const char *ResourceName, ModelRenderData *RenderData );
 static void ResetCamera ( CameraData *Camera );
@@ -57,37 +52,66 @@ static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyC
 			RightCtrlPressed = State;
 			break;
 			}
+		case crKeyCode_LeftAlt:
+		case crKeyCode_RightAlt:
+			{
+			CameraInput_SetMouseViewEnabled ( State );
+			break;
+			}
 		case crKeyCode_O:
 			{
 			if ( ( ( LeftCtrlPressed ) || ( RightCtrlPressed ) ) && ( State == true ) && ( OPressed == false ) )
 				{
 				char *SelectedFilename = NULL;
-				nfdresult_t result = NFD_OpenDialog ( "gltf;glb", TEST_FILENAME, &SelectedFilename );
-				if ( result == NFD_OKAY )
+				SelectedFilename = cuiFileDialog ( NULL, "Load model file", "gltf;glb", false, false );
+				if ( SelectedFilename == NULL )
 					{
-					ResourceHub_DestroyAll();
-					SAFE_DEL_C ( ModelCommands.Commands );
-					ModelCommands.Count = 0;
-					SAFE_DEL_C ( ModelCommands.NodeIndices );
-					ModelCommands.OriginalModelData = NULL;
+					LOG_ERROR ( "Error selecting file" );
+					break;
+					}
 
-					ResourceHandle NewModelHandle = LoadModel ( SelectedFilename, "Model", &ModelCommands );
-					free ( SelectedFilename );
-					if ( NewModelHandle == ResourceHandle_Invalid )
-						{
-						LOG_ERROR ( "Unable to load model file" );
-						break;
-						}
-					ForceRenderCommandUpdate = true;
+				ResourceHub_DestroyAll();
+				SAFE_DEL_C ( ModelCommands.Commands );
+				ModelCommands.Count = 0;
+				SAFE_DEL_C ( ModelCommands.NodeIndices );
+				ModelCommands.OriginalModelData = NULL;
+
+				ResourceHandle NewModelHandle = LoadModel ( SelectedFilename, "Model", &ModelCommands );
+				free ( SelectedFilename );
+				if ( NewModelHandle == ResourceHandle_Invalid )
+					{
+					LOG_ERROR ( "Unable to load model file" );
+					break;
 					}
+				ForceRenderCommandUpdate = true;
+
+				/*nfdresult_t result = NFD_OpenDialog ( "gltf;glb", TEST_FILENAME, &SelectedFilename );
+				if ( result == NFD_OKAY )
+				{
+				ResourceHub_DestroyAll();
+				SAFE_DEL_C ( ModelCommands.Commands );
+				ModelCommands.Count = 0;
+				SAFE_DEL_C ( ModelCommands.NodeIndices );
+				ModelCommands.OriginalModelData = NULL;
+
+				ResourceHandle NewModelHandle = LoadModel ( SelectedFilename, "Model", &ModelCommands );
+				free ( SelectedFilename );
+				if ( NewModelHandle == ResourceHandle_Invalid )
+					{
+					LOG_ERROR ( "Unable to load model file" );
+					break;
+					}
+				ForceRenderCommandUpdate = true;
+				}
 				else if ( result == NFD_CANCEL )
-					{
-					puts ( "User pressed cancel." );
-					}
+				{
+				puts ( "User pressed cancel." );
+				}
 				else
-					{
-					printf ( "Error: %s\n", NFD_GetError() );
-					}
+				{
+				printf ( "Error: %s\n", NFD_GetError() );
+				}*/
+
 				}
 			OPressed = State;
 			break;
@@ -198,6 +222,7 @@ static bool InitializeCamera ( CameraData *Camera )
 		0.0f, 0.0f, 4.0f
 		} );
 	UpdateCameraMatrices ( Camera );
+	CameraInput_SetMouseViewEnabled ( false );
 
 	return true;
 	}
@@ -261,6 +286,8 @@ static void ResetCamera ( CameraData *Camera )
 		} );
 	}
 
+#include <unistd.h>
+
 int main ( int argc, char *argv[] )
 	{
 	BaseTransformStruct ModelBaseTransform = { 0 };
@@ -272,6 +299,11 @@ int main ( int argc, char *argv[] )
 	if ( InitializeCamera ( &MainCamera ) == false )
 		return -1;
 
+	char cwd[500];
+	if ( getcwd ( cwd, sizeof ( cwd ) ) != NULL )
+		{
+		printf ( "Current working dir: %s\n", cwd );
+		}
 	math_vec3_set ( &ModelBaseTransform.Position, 0.0f, 0.0f, 0.0f );
 	ModelBaseTransform.Orientation = MATH_QUAT_IDENTITY;
 	UpdateCachedValues ( &ModelBaseTransform );

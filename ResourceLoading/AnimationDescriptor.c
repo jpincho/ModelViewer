@@ -1,4 +1,5 @@
 #include "AnimationDescriptor.h"
+#include <stdlib.h>
 
 void DestroyAnimationDescriptor ( AnimationDescriptor *Descriptor )
 	{

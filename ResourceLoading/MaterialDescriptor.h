@@ -1,5 +1,5 @@
 #pragma once
-#include <Platform/defines.h>
+#include <Platform/Platform.h>
 #include <C_CrossRenderer/Texture.h>
 
 BEGIN_C_DECLARATIONS

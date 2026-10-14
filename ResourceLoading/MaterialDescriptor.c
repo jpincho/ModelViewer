@@ -1,6 +1,7 @@
 #include "MaterialDescriptor.h"
 #include <Platform/Logger.h>
 #include <string.h>
+#include <stdlib.h>
 
 void LogMaterialDescriptor ( const MaterialDescriptor *Descriptor, const int Indentation )
 	{

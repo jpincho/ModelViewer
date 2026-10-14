@@ -1,5 +1,5 @@
 #pragma once
-#include <Platform/defines.h>
+#include <Platform/Platform.h>
 #include <stdbool.h>
 #include "DataFileContentDescriptor.h"
 

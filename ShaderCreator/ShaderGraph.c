@@ -1,3 +1,4 @@
+#if 0
 #include "ShaderCreator.h"
 #include <C_CrossRenderer/OpenGL4/GL4Renderer.h>
 #include <Platform/ArrayUtils.h>
@@ -1108,3 +1109,5 @@ bool scGraph_GenerateCode ( scShaderGraph *Graph, crShaderCode *OutputCode )
 	free ( State );
 	return Success;
 	}
+
+	#endif

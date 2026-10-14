@@ -1,6 +1,6 @@
 #pragma once
+#include <Platform/Platform.h>
 #include "BaseTransform.h"
-#include <Platform/defines.h>
 
 BEGIN_C_DECLARATIONS
 typedef struct
