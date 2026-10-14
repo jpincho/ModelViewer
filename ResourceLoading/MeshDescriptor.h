@@ -29,9 +29,10 @@ typedef struct
 
 typedef struct
 	{
-	vec4 *Colors;
+	vec4 *Colors, *Emissive;
 	vec3 *Positions, *Normals, *Tangents, *Bitangents;
 	vec2 *TexCoords;
+	float *Shininess;
 	uint64_t VertexCount;
 	uint32_t *Indices;
 	uint64_t IndexCount;

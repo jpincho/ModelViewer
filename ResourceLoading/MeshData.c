@@ -58,6 +58,30 @@ bool BuildMeshDataFromDescriptor ( const MeshDescriptor Descriptor, MeshData *Da
 	else
 		Data->Color = crShaderBufferHandle_Invalid;
 
+	if ( Descriptor.Shininess )
+		{
+		crShaderBufferDescriptor ShininessBufferDescriptor = { 0 };
+		ShininessBufferDescriptor.AccessType = crShaderBufferAccessType_Static;
+		ShininessBufferDescriptor.BufferType = crShaderBufferType_Array;
+		ShininessBufferDescriptor.Capacity = ShininessBufferDescriptor.DataSize = Descriptor.VertexCount * sizeof ( float );
+		ShininessBufferDescriptor.Data = Descriptor.Shininess;
+		Data->Shininess = crCreateShaderBuffer ( ShininessBufferDescriptor );
+		}
+	else
+		Data->Shininess = crShaderBufferHandle_Invalid;
+
+	if ( Descriptor.Emissive )
+		{
+		crShaderBufferDescriptor EmissiveBufferDescriptor = { 0 };
+		EmissiveBufferDescriptor.AccessType = crShaderBufferAccessType_Static;
+		EmissiveBufferDescriptor.BufferType = crShaderBufferType_Array;
+		EmissiveBufferDescriptor.Capacity = EmissiveBufferDescriptor.DataSize = Descriptor.VertexCount * sizeof ( vec4 );
+		EmissiveBufferDescriptor.Data = Descriptor.Emissive;
+		Data->Emissive = crCreateShaderBuffer ( EmissiveBufferDescriptor );
+		}
+	else
+		Data->Emissive = crShaderBufferHandle_Invalid;
+
 	if ( Descriptor.Indices )
 		{
 		crShaderBufferDescriptor IndexBufferDescriptor = { 0 };
@@ -140,6 +164,26 @@ bool BuildMeshDataFromDescriptor ( const MeshDescriptor Descriptor, MeshData *Da
 		Data->ColorStream.StartOffset = 0;
 		Data->ColorStream.Stride = sizeof ( vec4 );
 		}
+	if ( ( !Data->ShininessStream.BufferHandle ) && ( Data->Shininess ) )
+		{
+		Data->ShininessStream.BufferHandle = Data->Shininess;
+		Data->ShininessStream.ComponentsPerElement = 1;
+		Data->ShininessStream.ComponentType = crShaderBufferComponentType_Float;
+		Data->ShininessStream.NormalizeData = false;
+		Data->ShininessStream.PerInstance = false;
+		Data->ShininessStream.StartOffset = 0;
+		Data->ShininessStream.Stride = sizeof ( float );
+		}
+	if ( ( !Data->EmissiveStream.BufferHandle ) && ( Data->Emissive ) )
+		{
+		Data->EmissiveStream.BufferHandle = Data->Emissive;
+		Data->EmissiveStream.ComponentsPerElement = 4;
+		Data->EmissiveStream.ComponentType = crShaderBufferComponentType_Float;
+		Data->EmissiveStream.NormalizeData = false;
+		Data->EmissiveStream.PerInstance = false;
+		Data->EmissiveStream.StartOffset = 0;
+		Data->EmissiveStream.Stride = sizeof ( vec4 );
+		}
 	if ( ( !Data->TexCoordStream.BufferHandle ) && ( Data->TexCoord ) )
 		{
 		Data->TexCoordStream.BufferHandle = Data->TexCoord;
@@ -220,6 +264,8 @@ void DestroyMeshData ( MeshData *Data )
 	SAFE_DELETE_SHADER_BUFFER ( Data->BoneIndex );
 	SAFE_DELETE_SHADER_BUFFER ( Data->BoneWeight );
 	SAFE_DELETE_SHADER_BUFFER ( Data->Color );
+	SAFE_DELETE_SHADER_BUFFER ( Data->Emissive );
+	SAFE_DELETE_SHADER_BUFFER ( Data->Shininess );
 	SAFE_DELETE_SHADER_BUFFER ( Data->Index );
 	SAFE_DELETE_SHADER_BUFFER ( Data->Normal );
 	SAFE_DELETE_SHADER_BUFFER ( Data->Position );

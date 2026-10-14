@@ -42,6 +42,18 @@ void CopyMeshDescriptor ( MeshDescriptor *Output, const MeshDescriptor *Input )
 		ASSERT_FAIL ( Output->Colors != NULL );
 		memcpy ( Output->Colors, Input->Colors, sizeof ( vec4 ) * Input->VertexCount );
 		}
+	if ( Input->Emissive != NULL )
+		{
+		Output->Emissive = malloc ( sizeof ( vec4 ) * Input->VertexCount );
+		ASSERT_FAIL ( Output->Emissive != NULL );
+		memcpy ( Output->Emissive, Input->Emissive, sizeof ( vec4 ) * Input->VertexCount );
+		}
+	if ( Input->Shininess != NULL )
+		{
+		Output->Shininess = malloc ( sizeof ( float ) * Input->VertexCount );
+		ASSERT_FAIL ( Output->Shininess != NULL );
+		memcpy ( Output->Shininess, Input->Shininess, sizeof ( float ) * Input->VertexCount );
+		}
 
 	Output->Positions = malloc ( sizeof ( vec3 ) * Input->VertexCount );
 	ASSERT_FAIL ( Output->Positions != NULL );
@@ -113,6 +125,8 @@ void CopyMeshDescriptor ( MeshDescriptor *Output, const MeshDescriptor *Input )
 void DestroyMeshDescriptor ( MeshDescriptor *Descriptor )
 	{
 	SAFE_DEL_C ( Descriptor->Colors );
+	SAFE_DEL_C ( Descriptor->Emissive );
+	SAFE_DEL_C ( Descriptor->Shininess );
 	SAFE_DEL_C ( Descriptor->Positions );
 	SAFE_DEL_C ( Descriptor->Normals );
 	SAFE_DEL_C ( Descriptor->Tangents );

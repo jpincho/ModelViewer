@@ -129,7 +129,6 @@ void CameraInput_ProcessCameraMovement ( const float TimeDelta )
 
 	vec3 KeyRotation = MATH_VEC3_ZERO;
 	math_vec3_scale ( &KeyRotation, CameraKeyRotation, TimeDelta );
-	math_vec3_scale ( &CameraMouseRotation, CameraMouseRotation, TimeDelta );
 
 	if ( ( math_vec3_is_zero ( CameraMouseRotation ) == false ) || ( math_vec3_is_zero ( KeyRotation ) == false ) )
 		{

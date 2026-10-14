@@ -1,6 +1,7 @@
 #include "Utils.h"
 #include "ResourceLoading/ThreadedFileLoader.h"
 #include <C_CrossRenderer/Shader.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <Platform/Logger.h>
@@ -26,10 +27,10 @@ scShaderDefinition BuildShaderDefinitionForMeshData ( const MeshData *InputMeshD
 	else
 		ShaderDefinition.SpecularSource = scSource_Uniform;
 
-	// Where to get specular shininess factor from
+	// Where to get shininess component from
 	if ( ( InputMeshData->Material.Textures[MatTexType_Shininess].Handle != crTextureHandle_Invalid ) && ( InputMeshData->TexCoordStream.BufferHandle != crShaderBufferHandle_Invalid ) )
 		ShaderDefinition.ShininessSource = scSource_Texture;
-	else if ( InputMeshData->Color != crShaderBufferHandle_Invalid )
+	else if ( InputMeshData->Shininess != crShaderBufferHandle_Invalid )
 		ShaderDefinition.ShininessSource = scSource_Attribute;
 	else
 		ShaderDefinition.ShininessSource = scSource_Uniform;
@@ -37,7 +38,7 @@ scShaderDefinition BuildShaderDefinitionForMeshData ( const MeshData *InputMeshD
 	// Where to get emissiveness component from
 	if ( ( InputMeshData->Material.Textures[MatTexType_Emissive].Handle != crTextureHandle_Invalid ) && ( InputMeshData->TexCoordStream.BufferHandle != crShaderBufferHandle_Invalid ) )
 		ShaderDefinition.EmissivenessSource = scSource_Texture;
-	else if ( InputMeshData->Color != crShaderBufferHandle_Invalid )
+	else if ( InputMeshData->Emissive != crShaderBufferHandle_Invalid )
 		ShaderDefinition.EmissivenessSource = scSource_Attribute;
 	else
 		ShaderDefinition.EmissivenessSource = scSource_Uniform;
@@ -85,7 +86,13 @@ bool BuildRenderCommandForMeshData ( crRenderCommand *Command, const MeshData *I
 	crSetRenderCommandShaderBufferBinding ( Command, crGetShaderAttributeHandle ( Shader, scGetStandardAttributeName ( scAttribute_Tangent ) ), InputMeshData->TangentStream );
 	crSetRenderCommandShaderBufferBinding ( Command, crGetShaderAttributeHandle ( Shader, scGetStandardAttributeName ( scAttribute_Bitangent ) ), InputMeshData->BitangentStream );
 	crSetRenderCommandShaderBufferBinding ( Command, crGetShaderAttributeHandle ( Shader, scGetStandardAttributeName ( scAttribute_Color ) ), InputMeshData->ColorStream );
-
+	crSetRenderCommandShaderBufferBinding ( Command, crGetShaderAttributeHandle ( Shader, scGetStandardAttributeName ( scAttribute_Shininess ) ), InputMeshData->ShininessStream );
+	crSetRenderCommandShaderBufferBinding ( Command, crGetShaderAttributeHandle ( Shader, scGetStandardAttributeName ( scAttribute_Emissiveness ) ), InputMeshData->EmissiveStream );
+	if ( ( InputMeshData->BoneCount != 0 ) && ( InputMeshData->BoneIndexStream.BufferHandle != crShaderBufferHandle_Invalid ) && ( InputMeshData->BoneWeightStream.BufferHandle != crShaderBufferHandle_Invalid ) )
+		{
+		crSetRenderCommandShaderBufferBinding ( Command, crGetShaderAttributeHandle ( Shader, scGetStandardAttributeName ( scAttribute_BoneIndex ) ), InputMeshData->BoneIndexStream );
+		crSetRenderCommandShaderBufferBinding ( Command, crGetShaderAttributeHandle ( Shader, scGetStandardAttributeName ( scAttribute_BoneWeight ) ), InputMeshData->BoneWeightStream );
+		}
 	crSetRenderCommandIndexShaderBufferBinding ( Command, InputMeshData->IndexStream );
 
 	for ( unsigned TypeIterator = 0; TypeIterator < MatTexType_Count; ++TypeIterator )
@@ -151,14 +158,29 @@ bool BuildModelRenderData ( ModelRenderData *RenderData, const ModelData *InputM
 		return false;
 		}
 
+	// If I'm unable to generate the shader for some mesh, keep going with the other meshes
+	unsigned Written = 0;
 	for ( unsigned Index = 0; Index < RenderData->Count; ++Index )
 		{
 		scShaderDefinition ShaderDefs = BuildShaderDefinitionForMeshData ( InputModelData->Meshes + MeshIndices[Index] );
 		ShaderDefs.LightModel = scLightModel_Off;
 		crShaderHandle Shader = scAssembleShader ( ShaderDefs );
+		if ( Shader == crShaderHandle_Invalid )
+			{
+			LOG_ERROR ( "Unable to assemble shader for mesh %u", MeshIndices[Index] );
+			continue;
+			}
 
-		crSetRenderCommandShader ( RenderData->Commands + Index, Shader );
-		BuildRenderCommandForMeshData ( RenderData->Commands + Index, InputModelData->Meshes + MeshIndices[Index], Shader );
+		RenderData->NodeIndices[Written] = RenderData->NodeIndices[Index];
+		crSetRenderCommandShader ( RenderData->Commands + Written, Shader );
+		BuildRenderCommandForMeshData ( RenderData->Commands + Written, InputModelData->Meshes + MeshIndices[Index], Shader );
+		++Written;
+		}
+	RenderData->Count = Written;
+	if ( RenderData->Count == 0 )
+		{
+		DestroyModelRenderData ( RenderData );
+		return false;
 		}
 	RenderData->OriginalModelData = InputModelData;
 	return true;
@@ -178,15 +200,35 @@ void UpdateModelRenderData ( const ModelRenderData *RenderData, BaseTransformStr
 	ComputeMeshTreeNodeWorldMatrices ( RenderData->OriginalModelData->NodeTree, RenderData->OriginalModelData->NodeCount, NodeWorldMatrices );
 
 	for ( unsigned Index = 0; Index < RenderData->Count; ++Index )
-		{
+	{
 		const unsigned NodeIndex = RenderData->NodeIndices[Index];
 		mat4 ModelMatrix;
 		math_mat4_multiply ( &ModelMatrix, ScaledGlobalMatrix, NodeWorldMatrices[NodeIndex] );
-
+		
 		crRenderCommand *Command = &RenderData->Commands[Index];
 		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ModelMatrix" ), ModelMatrix );
 		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ViewMatrix" ), ViewMatrix );
 		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ProjectionMatrix" ), ProjectionMatrix );
+		
+		mat3 InvertedModelMatrix;
+		math_mat3_from_mat4 ( &InvertedModelMatrix, ModelMatrix );
+		math_mat3_invert ( &InvertedModelMatrix, InvertedModelMatrix );
+		mat3 NormalMatrix;
+		math_mat3_transpose ( &NormalMatrix, InvertedModelMatrix );
+		crSetRenderCommandUniformMatrix3Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_NormalMatrix" ), NormalMatrix );
+		
+		// Set default bone matrices to identity
+		mat4 BindBoneMatrix;
+		math_mat4_set_identity_matrix ( &BindBoneMatrix );
+		for ( unsigned BoneIndex = 0; ; ++BoneIndex )
+			{
+			char BoneUniformName[64];
+			snprintf ( BoneUniformName, sizeof ( BoneUniformName ), "uBoneMatrices[%u]", BoneIndex );
+			crShaderUniformHandle BoneHandle = crGetShaderUniformHandle ( Command->Shader, BoneUniformName );
+			if ( BoneHandle == crShaderUniformHandle_Invalid )
+				break;
+			crSetRenderCommandUniformMatrix4Value ( Command, BoneHandle, BindBoneMatrix );
+			}
 		}
 	}
 
@@ -221,14 +263,14 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 
 	char *OwningPath = alloca ( strlen ( Filename ) + 1 );
 	strcpy ( OwningPath, Filename );
-	char *LastSlash = strrchr ( OwningPath, PLATFORM_PATH_SEPARATOR);
+	char *LastSlash = strrchr ( OwningPath, PLATFORM_PATH_SEPARATOR );
 	if ( LastSlash != NULL )
 		*LastSlash = 0;
 
 	DataFileContentDescriptor *ModelFileData = ThreadedFileLoader_GetFileContentDescriptor ( FileIndex );
 	if ( ModelFileData == NULL )
 		return ResourceHandle_Invalid;
-		
+
 	char FullTexturePath[1024];
 	// Load all external textures that are referenced..
 	for ( unsigned MaterialIndex = 0; MaterialIndex < ModelFileData->MaterialCount; ++MaterialIndex )

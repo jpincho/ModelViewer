@@ -4,8 +4,8 @@
 
 typedef struct
 	{
-	crShaderBufferHandle Position, Color, Normal, TexCoord, Index, Tangent, Bitangent, BoneIndex, BoneWeight;
-	crShaderBufferDataStream PositionStream, ColorStream, NormalStream, TexCoordStream, IndexStream, TangentStream, BitangentStream, BoneIndexStream, BoneWeightStream;
+	crShaderBufferHandle Position, Color, Shininess, Emissive, Normal, TexCoord, Index, Tangent, Bitangent, BoneIndex, BoneWeight;
+	crShaderBufferDataStream PositionStream, ShininessStream, EmissiveStream, ColorStream, NormalStream, TexCoordStream, IndexStream, TangentStream, BitangentStream, BoneIndexStream, BoneWeightStream;
 	crPrimitiveType Primitive;
 	MaterialData Material;
 	uint32_t VertexCount, BoneCount;

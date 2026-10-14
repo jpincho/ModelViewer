@@ -37,6 +37,8 @@ typedef enum
 	scAttribute_Bitangent,
 	scAttribute_BoneIndex,
 	scAttribute_BoneWeight,
+	scAttribute_Shininess,
+	scAttribute_Emissiveness,
 	scAttribute_Count
 	} scShaderAttributeType;
 

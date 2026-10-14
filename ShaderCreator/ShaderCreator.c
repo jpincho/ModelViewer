@@ -100,20 +100,16 @@ static sgNodeHandle AddFloatSource ( const sgGraphHandle Graph, const scMaterial
 		}
 	}
 
-static sgNodeHandle AddWorldNormal ( const sgGraphHandle Graph, const scShaderDefinition Definition, const sgNodeHandle Model, const sgNodeHandle Normal, const unsigned NormalPin, const sgNodeHandle UV )
+static sgNodeHandle AddWorldNormal ( const sgGraphHandle Graph, const scShaderDefinition Definition, const sgNodeHandle NormalMatrix, const sgNodeHandle Normal, const unsigned NormalPin, const sgNodeHandle UV )
 	{
-	sgNodeHandle Model3 = sgAddMat3Cast ( Graph );
-	if ( sgAddConnection ( Graph, Model, 0, Model3, 0 ) == false )
-		return sgNodeHandle_Invalid;
-
 	if ( Definition.NormalSource == scSource_Texture )
 		{
-		/* Tangent and bitangent are rotated by the model matrix. Skinning does not expose the blended bone matrix. */
+		/* Tangent and bitangent are rotated by the normal matrix. Skinning does not expose the blended bone matrix. */
 		sgNodeHandle Tangent = sgAddAttribute ( Graph, scGetStandardAttributeName ( scAttribute_Tangent ), sgValueType_Vec3 );
 		sgNodeHandle Bitangent = sgAddAttribute ( Graph, scGetStandardAttributeName ( scAttribute_Bitangent ), sgValueType_Vec3 );
-		sgNodeHandle WorldTangent = MultiplyMat3ByVec3 ( Graph, Model3, Tangent, 0 );
-		sgNodeHandle WorldBitangent = MultiplyMat3ByVec3 ( Graph, Model3, Bitangent, 0 );
-		sgNodeHandle WorldNormal = MultiplyMat3ByVec3 ( Graph, Model3, Normal, NormalPin );
+		sgNodeHandle WorldTangent = MultiplyMat3ByVec3 ( Graph, NormalMatrix, Tangent, 0 );
+		sgNodeHandle WorldBitangent = MultiplyMat3ByVec3 ( Graph, NormalMatrix, Bitangent, 0 );
+		sgNodeHandle WorldNormal = MultiplyMat3ByVec3 ( Graph, NormalMatrix, Normal, NormalPin );
 		sgNodeHandle TBN = sgAddTBN ( Graph );
 		if ( ( sgAddConnection ( Graph, WorldNormal, 0, TBN, 0 ) == false ) ||
 		        ( sgAddConnection ( Graph, WorldTangent, 0, TBN, 1 ) == false ) ||
@@ -133,7 +129,7 @@ static sgNodeHandle AddWorldNormal ( const sgGraphHandle Graph, const scShaderDe
 		return Mapped;
 		}
 
-	sgNodeHandle Transformed = MultiplyMat3ByVec3 ( Graph, Model3, Normal, NormalPin );
+	sgNodeHandle Transformed = MultiplyMat3ByVec3 ( Graph, NormalMatrix, Normal, NormalPin );
 	sgNodeHandle Normalized = sgAddNormalize ( Graph );
 	if ( sgAddConnection ( Graph, Transformed, 0, Normalized, 0 ) == false )
 		return sgNodeHandle_Invalid;
@@ -231,18 +227,20 @@ static bool FillShaderGraph ( const sgGraphHandle Graph, const scShaderDefinitio
 		sgNodeHandle ShininessAttr = sgNodeHandle_Invalid;
 		if ( Definition.ShininessSource == scSource_Attribute )
 			{
-			ShininessAttr = sgAddAttribute ( Graph, "a_Shininess", sgValueType_Float );
+			ShininessAttr = sgAddAttribute ( Graph, scGetStandardAttributeName ( scAttribute_Shininess ), sgValueType_Float );
 			if ( ShininessAttr == sgNodeHandle_Invalid )
 				return false;
 			}
 		sgNodeHandle DefaultShininess = sgAddConstantFloat ( Graph, 0.6f );
 		sgNodeHandle Shininess = AddFloatSource ( Graph, Definition.ShininessSource, MatTexType_Shininess, UV, ShininessAttr, DefaultShininess );
-		sgNodeHandle Normal = AddWorldNormal ( Graph, Definition, Model, ShadingNormal, ShadingNormalPin, UV );
+		sgNodeHandle NormalMatrix = sgAddUniform ( Graph, "u_NormalMatrix", sgValueType_Mat3 );
+		sgNodeHandle Normal = AddWorldNormal ( Graph, Definition, NormalMatrix, ShadingNormal, ShadingNormalPin, UV );
 		sgNodeHandle CameraPosition = sgAddUniform ( Graph, "u_ViewPosition", sgValueType_Vec3 );
 		sgNodeHandle Lit = sgAddBlinnPhongNode ( Graph );
 		if ( ( sgAddConnection ( Graph, WorldPosition4, 0, WorldPosition3, 0 ) == false ) ||
 		        ( Specular == sgNodeHandle_Invalid ) || ( DefaultShininess == sgNodeHandle_Invalid ) ||
-		        ( Shininess == sgNodeHandle_Invalid ) || ( Normal == sgNodeHandle_Invalid ) ||
+		        ( Shininess == sgNodeHandle_Invalid ) || ( NormalMatrix == sgNodeHandle_Invalid ) ||
+		        ( Normal == sgNodeHandle_Invalid ) ||
 		        ( CameraPosition == sgNodeHandle_Invalid ) ||
 		        ( sgAddConnection ( Graph, Diffuse, 0, Lit, 0 ) == false ) ||
 		        ( sgAddConnection ( Graph, Specular, 0, Lit, 1 ) == false ) ||
@@ -258,7 +256,7 @@ static bool FillShaderGraph ( const sgGraphHandle Graph, const scShaderDefinitio
 			sgNodeHandle EmissiveAttr = sgNodeHandle_Invalid;
 			if ( Definition.EmissivenessSource == scSource_Attribute )
 				{
-				EmissiveAttr = sgAddAttribute ( Graph, "a_Emissiveness", sgValueType_Vec4 );
+				EmissiveAttr = sgAddAttribute ( Graph, scGetStandardAttributeName ( scAttribute_Emissiveness ), sgValueType_Vec4 );
 				if ( EmissiveAttr == sgNodeHandle_Invalid )
 					return false;
 				}
@@ -404,6 +402,8 @@ const char *Stringify_ShaderAttributeType ( const scShaderAttributeType Value )
 			STRINGIFY ( Bitangent );
 			STRINGIFY ( BoneIndex );
 			STRINGIFY ( BoneWeight );
+			STRINGIFY ( Shininess );
+			STRINGIFY ( Emissiveness );
 			case scAttribute_Count:
 				break;
 		}

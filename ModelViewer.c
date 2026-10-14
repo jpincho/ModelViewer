@@ -71,10 +71,7 @@ static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyC
 					}
 
 				ResourceHub_DestroyAll();
-				SAFE_DEL_C ( ModelCommands.Commands );
-				ModelCommands.Count = 0;
-				SAFE_DEL_C ( ModelCommands.NodeIndices );
-				ModelCommands.OriginalModelData = NULL;
+				DestroyModelRenderData ( &ModelCommands );
 
 				ResourceHandle NewModelHandle = LoadModel ( SelectedFilename, "Model", &ModelCommands );
 				free ( SelectedFilename );
