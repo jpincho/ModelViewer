@@ -2,9 +2,9 @@
 
 void UpdateCachedValues ( BaseTransformStruct *Transform )
 	{
-	math_vec3_rotate_by_quat ( &Transform->CachedValues.ZAxis, MAKE_VEC3 ( vec3, 0.0f, 0.0f, 1.0f ), Transform->Orientation );
-	math_vec3_rotate_by_quat ( &Transform->CachedValues.YAxis, MAKE_VEC3 ( vec3, 0.0f, 1.0f, 0.0f ), Transform->Orientation );
-	math_vec3_rotate_by_quat ( &Transform->CachedValues.XAxis, MAKE_VEC3 ( vec3, 1.0f, 0.0f, 0.0f ), Transform->Orientation );
+	math_vec3_rotate_by_quat ( &Transform->CachedValues.ZAxis, MAKE_VEC3 ( 0.0f, 0.0f, 1.0f ), Transform->Orientation );
+	math_vec3_rotate_by_quat ( &Transform->CachedValues.YAxis, MAKE_VEC3 ( 0.0f, 1.0f, 0.0f ), Transform->Orientation );
+	math_vec3_rotate_by_quat ( &Transform->CachedValues.XAxis, MAKE_VEC3 ( 1.0f, 0.0f, 0.0f ), Transform->Orientation );
 
 	mat4 Orientation;
 	mat4 Position;
