@@ -43,3 +43,6 @@ crShaderHandle ResourceHub_GetShaderHandle ( const ResourceHandle EntryHandle );
 
 ResourceHandle ResourceHub_FindResource ( const ResourceHub_Type Type, const char *Name );
 bool ResourceHub_BuildResource ( const ResourceHandle EntryHandle );
+
+unsigned ResourceHub_GetResourceCountByType ( const ResourceHub_Type Type );
+ResourceHandle ResourceHub_GetResourceByTypeAndIndex ( const ResourceHub_Type Type, const unsigned Index );

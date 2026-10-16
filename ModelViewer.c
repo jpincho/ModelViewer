@@ -63,13 +63,13 @@ static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyC
 			if ( ( ( LeftCtrlPressed ) || ( RightCtrlPressed ) ) && ( State == true ) && ( OPressed == false ) )
 				{
 				char *SelectedFilename = NULL;
-				SelectedFilename = cuiFileDialog ( NULL, "Load model file", "*.gltf;*.glb", false, false );
+				SelectedFilename = cuiOpenFileDialog ( NULL, "Load model file", "All valid|*.gltf;*.gltb;|GLTF|*.gltf;|GLTF Binary|*.glb" );
 				if ( SelectedFilename == NULL )
 					{
 					LOG_ERROR ( "Error selecting file" );
 					break;
 					}
-
+				
 				ResourceHub_DestroyAll();
 				DestroyModelRenderData ( &ModelCommands );
 
@@ -80,6 +80,11 @@ static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyC
 					LOG_ERROR ( "Unable to load model file" );
 					break;
 					}
+				ModelDescriptor *Descriptor = ResourceHub_GetModelDescriptor ( NewModelHandle );
+				assert ( Descriptor != NULL );
+
+				ResetCamera ( &MainCamera );
+				AdjustToFit ( Descriptor->AABBox, &MainCamera, &ModelScale );
 				ForceRenderCommandUpdate = true;
 				}
 			OPressed = State;
@@ -289,10 +294,7 @@ int main ( int argc, char *argv[] )
 		return -1;
 
 	AdjustToFit ( Descriptor->AABBox, &MainCamera, &ModelScale );
-
-	//ModelScale = CalculateScaleToFit2 ( Descriptor->AABBox, MainCamera.Transform.Position.z, MainCamera.PerspectiveParameters.FOV, MainCamera.PerspectiveParameters.AspectRatio );
 	UpdateModelRenderData ( &ModelCommands, &ModelBaseTransform, ModelScale, MainCamera.CachedValues.ViewMatrix, MainCamera.CachedValues.ProjectionMatrix );
-
 
 	double LastEndFrameSeconds = Platform_GetPerformanceCurrentTime();
 	double TotalDelta = 0.0;

@@ -3,6 +3,8 @@
 #include <Platform/PointerList.h>
 #include <string.h>
 
+#define TotalResourceTypes 5
+
 typedef struct ResourceEntry
 	{
 	union
@@ -40,7 +42,7 @@ typedef struct ResourceEntry
 	bool Built;
 	} ResourceEntry;
 
-static PointerList Entries;
+static PointerList EntriesByType[TotalResourceTypes];
 
 static ResourceEntry *GetResourceEntryFromHandle ( const ResourceHandle Handle )
 	{
@@ -74,7 +76,7 @@ ResourceHandle ResourceHub_CreateEntry ( const ResourceHub_Type Type, const char
 	NewEntry->Type = Type;
 	NewEntry->Name = strdup ( Name );
 	LOG_DEBUG ( "Added resource '%s' type '%s'", Name, Stringify_ResourceHub_Type ( Type ) );
-	PointerListNode *Node = PointerList_AddAtEnd ( &Entries, NewEntry );
+	PointerListNode *Node = PointerList_AddAtEnd ( &EntriesByType[Type], NewEntry );
 	return Node;
 	}
 
@@ -124,16 +126,19 @@ bool ResourceHub_DestroyEntry ( const ResourceHandle EntryHandle )
 
 	SAFE_DEL_C ( EntryData->Name );
 	free ( EntryData );
-	PointerList_DestroyNode ( &Entries, Node );
+	PointerList_DestroyNode ( &EntriesByType[EntryData->Type], Node );
 	return true;
 	}
 
 void ResourceHub_DestroyAll ( void )
 	{
-	while ( PointerList_GetSize ( &Entries ) > 0 )
+	for ( unsigned Type = 0; Type < TotalResourceTypes; ++Type )
 		{
-		PointerListNode *NodeIterator = PointerList_GetFirst ( &Entries );
-		ResourceHub_DestroyEntry ( NodeIterator );
+		while ( PointerList_GetSize ( &EntriesByType[Type] ) > 0 )
+			{
+			PointerListNode *NodeIterator = PointerList_GetFirst ( &EntriesByType[Type] );
+			ResourceHub_DestroyEntry ( NodeIterator );
+			}
 		}
 	}
 
@@ -304,7 +309,7 @@ crShaderHandle ResourceHub_GetShaderHandle ( const ResourceHandle EntryHandle )
 
 ResourceHandle ResourceHub_FindResource ( const ResourceHub_Type Type, const char *Name )
 	{
-	PointerListNode *Node = PointerList_GetFirst ( &Entries );
+	PointerListNode *Node = PointerList_GetFirst ( &EntriesByType[Type] );
 	while ( Node != NULL )
 		{
 		ResourceEntry *EntryData = ( ResourceEntry * ) PointerList_GetNodeData ( Node );
@@ -453,4 +458,22 @@ bool ResourceHub_BuildResource ( const ResourceHandle EntryHandle )
 			}
 		}
 	return false;
+	}
+
+unsigned ResourceHub_GetResourceCountByType ( const ResourceHub_Type Type )
+	{
+	return EntriesByType[Type].Count;
+	}
+
+ResourceHandle ResourceHub_GetResourceByTypeAndIndex ( const ResourceHub_Type Type, const unsigned Index )
+	{
+	unsigned IteratorIndex = 0;
+	if ( Index >= EntriesByType[Type].Count )
+		return NULL;
+	PointerListNode *NodeIterator = PointerList_GetFirst ( &EntriesByType[Type] );
+	for ( unsigned IteratorIndex = 1; IteratorIndex < Index; ++IteratorIndex )
+		{
+		NodeIterator = PointerList_GetNextNode ( NodeIterator );
+		}
+	return ( ResourceHandle ) PointerList_GetNodeData ( NodeIterator );
 	}
