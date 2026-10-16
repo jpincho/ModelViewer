@@ -24,7 +24,7 @@ static ivec2 LastMousePosition;
 static bool HaveLastMousePosition = false;
 static ModelRenderData ModelCommands = { 0 };
 
-#define TEST_FILENAME MODEL_PATH "glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf"
+#define TEST_FILENAME MODEL_PATH "/GLTF/Character1/untitled.gltf"
 
 static ResourceHandle LoadModel ( const char *Filename, const char *ResourceName, ModelRenderData *RenderData );
 static void ResetCamera ( CameraData *Camera );
@@ -63,7 +63,7 @@ static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyC
 			if ( ( ( LeftCtrlPressed ) || ( RightCtrlPressed ) ) && ( State == true ) && ( OPressed == false ) )
 				{
 				char *SelectedFilename = NULL;
-				SelectedFilename = cuiFileDialog ( NULL, "Load model file", "gltf;glb", false, false );
+				SelectedFilename = cuiFileDialog ( NULL, "Load model file", "*.gltf;*.glb", false, false );
 				if ( SelectedFilename == NULL )
 					{
 					LOG_ERROR ( "Error selecting file" );
@@ -81,34 +81,6 @@ static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyC
 					break;
 					}
 				ForceRenderCommandUpdate = true;
-
-				/*nfdresult_t result = NFD_OpenDialog ( "gltf;glb", TEST_FILENAME, &SelectedFilename );
-				if ( result == NFD_OKAY )
-				{
-				ResourceHub_DestroyAll();
-				SAFE_DEL_C ( ModelCommands.Commands );
-				ModelCommands.Count = 0;
-				SAFE_DEL_C ( ModelCommands.NodeIndices );
-				ModelCommands.OriginalModelData = NULL;
-
-				ResourceHandle NewModelHandle = LoadModel ( SelectedFilename, "Model", &ModelCommands );
-				free ( SelectedFilename );
-				if ( NewModelHandle == ResourceHandle_Invalid )
-					{
-					LOG_ERROR ( "Unable to load model file" );
-					break;
-					}
-				ForceRenderCommandUpdate = true;
-				}
-				else if ( result == NFD_CANCEL )
-				{
-				puts ( "User pressed cancel." );
-				}
-				else
-				{
-				printf ( "Error: %s\n", NFD_GetError() );
-				}*/
-
 				}
 			OPressed = State;
 			break;
@@ -295,6 +267,10 @@ int main ( int argc, char *argv[] )
 
 	if ( InitializeCamera ( &MainCamera ) == false )
 		return -1;
+	ResetCamera ( &MainCamera );
+
+	if ( cuiInitializeWithArgs ( argc, argv ) == false )
+		return -1;
 
 	char cwd[500];
 	if ( getcwd ( cwd, sizeof ( cwd ) ) != NULL )
@@ -307,7 +283,16 @@ int main ( int argc, char *argv[] )
 	LoadedModelHandle = LoadModel ( TEST_FILENAME, "Model", &ModelCommands );
 	if ( LoadedModelHandle == ResourceHandle_Invalid )
 		return -1;
+
+	ModelDescriptor *Descriptor = ResourceHub_GetModelDescriptor ( LoadedModelHandle );
+	if ( Descriptor == NULL )
+		return -1;
+
+	AdjustToFit ( Descriptor->AABBox, &MainCamera, &ModelScale );
+
+	//ModelScale = CalculateScaleToFit2 ( Descriptor->AABBox, MainCamera.Transform.Position.z, MainCamera.PerspectiveParameters.FOV, MainCamera.PerspectiveParameters.AspectRatio );
 	UpdateModelRenderData ( &ModelCommands, &ModelBaseTransform, ModelScale, MainCamera.CachedValues.ViewMatrix, MainCamera.CachedValues.ProjectionMatrix );
+
 
 	double LastEndFrameSeconds = Platform_GetPerformanceCurrentTime();
 	double TotalDelta = 0.0;

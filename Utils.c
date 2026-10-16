@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <float.h>
 #include <Platform/Logger.h>
 #include <Platform/Platform.h>
 
@@ -200,23 +201,23 @@ void UpdateModelRenderData ( const ModelRenderData *RenderData, BaseTransformStr
 	ComputeMeshTreeNodeWorldMatrices ( RenderData->OriginalModelData->NodeTree, RenderData->OriginalModelData->NodeCount, NodeWorldMatrices );
 
 	for ( unsigned Index = 0; Index < RenderData->Count; ++Index )
-	{
+		{
 		const unsigned NodeIndex = RenderData->NodeIndices[Index];
 		mat4 ModelMatrix;
 		math_mat4_multiply ( &ModelMatrix, ScaledGlobalMatrix, NodeWorldMatrices[NodeIndex] );
-		
+
 		crRenderCommand *Command = &RenderData->Commands[Index];
 		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ModelMatrix" ), ModelMatrix );
 		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ViewMatrix" ), ViewMatrix );
 		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ProjectionMatrix" ), ProjectionMatrix );
-		
+
 		mat3 InvertedModelMatrix;
 		math_mat3_from_mat4 ( &InvertedModelMatrix, ModelMatrix );
 		math_mat3_invert ( &InvertedModelMatrix, InvertedModelMatrix );
 		mat3 NormalMatrix;
 		math_mat3_transpose ( &NormalMatrix, InvertedModelMatrix );
 		crSetRenderCommandUniformMatrix3Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_NormalMatrix" ), NormalMatrix );
-		
+
 		// Set default bone matrices to identity
 		mat4 BindBoneMatrix;
 		math_mat4_set_identity_matrix ( &BindBoneMatrix );
@@ -368,4 +369,68 @@ void ComputeMeshTreeNodeWorldMatrices ( const MeshTreeNode *NodeTree, const unsi
 			math_mat4_copy ( &WorldMatrices[Index], Accumulated );
 			}
 		}
+	}
+
+float CalculateScaleToFit ( const AABB BBox, const float CameraDistance, const float VerticalFOV, const float AspectRatio )
+	{
+	vec3 Delta = math_subtract_vec3_from_vec3 ( BBox.Max, BBox.Min );
+	float Radius = 0.5f * math_vec3_length ( Delta );
+	float HalfVerticalFOV = VerticalFOV * 0.5f;
+	float HalfHorizontalFOV = atanf ( tanf ( HalfVerticalFOV ) * AspectRatio );
+
+	float SmallerFOV = fminf ( HalfVerticalFOV, HalfHorizontalFOV );
+
+	return CameraDistance * sinf ( SmallerFOV ) / Radius;
+	}
+
+float CalculateScaleToFit2 ( const AABB BBox, const float CameraDistance, const float VerticalFOV, const float AspectRatio )
+	{
+	float tan_y = tanf ( VerticalFOV * 0.5f );
+	float tan_x = tan_y * AspectRatio;
+
+	float max_scale = FLT_MAX;
+
+	vec3 Corners[8];
+	AABB_CalculateCorners ( BBox, Corners );
+	for ( int i = 0; i < 8; ++i )
+		{
+		float x = fabsf ( Corners[i].x );
+		float y = fabsf ( Corners[i].y );
+		float z = Corners[i].z;
+
+		float dx = x - tan_x * z;
+		float dy = y - tan_y * z;
+
+		if ( dx > 0.0f )
+			{
+			float sx = CameraDistance * tan_x / dx;
+			if ( sx < max_scale )
+				max_scale = sx;
+			}
+
+		if ( dy > 0.0f )
+			{
+			float sy = CameraDistance * tan_y / dy;
+			if ( sy < max_scale )
+				max_scale = sy;
+			}
+		}
+
+	return max_scale == FLT_MAX ? 1.0f : max_scale;
+	}
+
+void AdjustToFit ( const AABB BBox, CameraData *Camera, float *Scale )
+	{
+	// Center BBox around (0,0,0)
+	AABB CenteredBBox;
+	CenteredBBox.Min = math_subtract_vec3_from_vec3 ( BBox.Max, BBox.Min );
+	CenteredBBox.Min = math_multiply_vec3_by_scalar ( CenteredBBox.Min, -0.5f );
+
+	CenteredBBox.Max = math_subtract_vec3_from_vec3 ( BBox.Max, BBox.Min );
+	CenteredBBox.Max = math_multiply_vec3_by_scalar ( CenteredBBox.Max, 0.5f );
+
+	*Scale = CalculateScaleToFit2 ( CenteredBBox, Camera->Transform.Position.z, Camera->PerspectiveParameters.FOV, Camera->PerspectiveParameters.AspectRatio );
+	Camera->Transform.Position.x = 0.0f;
+	Camera->Transform.Position.y = CenteredBBox.Max.y * *Scale;
+	Camera->Transform.Position.x = 0.0f;
 	}

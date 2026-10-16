@@ -74,3 +74,15 @@ bool AABB_FitsInside ( const AABB Outer, const AABB Inner )
 	         ( Inner.Min.y >= Outer.Min.y ) && ( Inner.Max.y <= Outer.Max.y ) &&
 	         ( Inner.Min.z >= Outer.Min.z ) && ( Inner.Max.z <= Outer.Max.z ) );
 	}
+
+void AABB_CalculateCorners ( const AABB Box, vec3 Corners[8] )
+	{
+	Corners[0] = MAKE_VEC3 ( Box.Min.x, Box.Min.y, Box.Min.z );
+	Corners[1] = MAKE_VEC3 ( Box.Min.x, Box.Min.y, Box.Max.z );
+	Corners[2] = MAKE_VEC3 ( Box.Min.x, Box.Max.y, Box.Min.z );
+	Corners[3] = MAKE_VEC3 ( Box.Min.x, Box.Max.y, Box.Max.z );
+	Corners[4] = MAKE_VEC3 ( Box.Max.x, Box.Min.y, Box.Min.z );
+	Corners[5] = MAKE_VEC3 ( Box.Max.x, Box.Min.y, Box.Max.z );
+	Corners[6] = MAKE_VEC3 ( Box.Max.x, Box.Max.y, Box.Min.z );
+	Corners[7] = MAKE_VEC3 ( Box.Max.x, Box.Max.y, Box.Max.z );
+	}
