@@ -124,9 +124,9 @@ bool ResourceHub_DestroyEntry ( const ResourceHandle EntryHandle )
 			}
 		}
 
+	PointerList_DestroyNode ( &EntriesByType[EntryData->Type], Node );
 	SAFE_DEL_C ( EntryData->Name );
 	free ( EntryData );
-	PointerList_DestroyNode ( &EntriesByType[EntryData->Type], Node );
 	return true;
 	}
 
@@ -471,9 +471,9 @@ ResourceHandle ResourceHub_GetResourceByTypeAndIndex ( const ResourceHub_Type Ty
 	if ( Index >= EntriesByType[Type].Count )
 		return NULL;
 	PointerListNode *NodeIterator = PointerList_GetFirst ( &EntriesByType[Type] );
-	for ( unsigned IteratorIndex = 1; IteratorIndex < Index; ++IteratorIndex )
+	for ( unsigned IteratorIndex = 0; IteratorIndex < Index; ++IteratorIndex )
 		{
 		NodeIterator = PointerList_GetNextNode ( NodeIterator );
 		}
-	return ( ResourceHandle ) PointerList_GetNodeData ( NodeIterator );
+	return ( ResourceHandle ) NodeIterator;
 	}
