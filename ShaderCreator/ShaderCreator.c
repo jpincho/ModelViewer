@@ -349,7 +349,7 @@ void scCreateShaderCode ( const scShaderDefinition NewRequirements, crShaderCode
 		LOG_ERROR ( "Unable to build shader graph from definition" );
 		return;
 		}
-	if ( sgGenerateGLSL ( Graph, &OutputCode->VertexShader, &OutputCode->FragmentShader ) == false )
+	if ( sgGenerateGLSL ( Graph, sgGetDefaultGLSLGeneratorOptions(), &OutputCode->VertexShader, &OutputCode->FragmentShader ) == false )
 		{
 		LOG_ERROR ( "Unable to generate GLSL from shader graph" );
 		SAFE_DEL_C ( OutputCode->VertexShader );
@@ -404,8 +404,8 @@ const char *Stringify_ShaderAttributeType ( const scShaderAttributeType Value )
 			STRINGIFY ( BoneWeight );
 			STRINGIFY ( Shininess );
 			STRINGIFY ( Emissiveness );
-			case scAttribute_Count:
-				break;
+		case scAttribute_Count:
+			break;
 		}
 #undef STRINGIFY
 	return "Invalid scShaderAttributeType";
