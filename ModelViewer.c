@@ -63,7 +63,7 @@ static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyC
 			if ( ( ( LeftCtrlPressed ) || ( RightCtrlPressed ) ) && ( State == true ) && ( OPressed == false ) )
 				{
 				char *SelectedFilename = NULL;
-				SelectedFilename = cuiOpenFileDialog ( NULL, "Load model file", "All valid|*.gltf;*.gltb;|GLTF|*.gltf;|GLTF Binary|*.glb" );
+				SelectedFilename = cuiOpenFileDialog ( NULL, "Load model file", "All valid|*.gltf;*.glb;|GLTF|*.gltf;|GLTF Binary|*.glb" );
 				if ( SelectedFilename == NULL )
 					{
 					LOG_ERROR ( "Error selecting file" );

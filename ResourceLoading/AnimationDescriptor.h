@@ -4,7 +4,7 @@
 
 typedef struct
 	{
-	double time;
+	double Time;
 	union
 		{
 		vec3 Vec3Value;
@@ -28,5 +28,7 @@ typedef struct
 	} AnimationDescriptor;
 
 BEGIN_C_DECLARATIONS
+void LogAnimationDescriptor ( const AnimationDescriptor *Descriptor, const int Indentation );
+void CopyAnimationDescriptor ( AnimationDescriptor *Output, const AnimationDescriptor *Input );
 void DestroyAnimationDescriptor ( AnimationDescriptor *Descriptor );
 END_C_DECLARATIONS

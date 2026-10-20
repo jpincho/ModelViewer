@@ -28,6 +28,23 @@
 
 const unsigned MAX_BONE_WEIGHTS_PER_VERTEX = 4;
 
+static crTextureWrapMode translate_aiWrapMode_to_crTextureWrapMode ( const enum aiTextureMapMode input )
+	{
+	switch ( input )
+		{
+		case aiTextureMapMode_Wrap:
+			return crTextureWrapMode_Repeat;
+		case aiTextureMapMode_Clamp:
+			return crTextureWrapMode_ClampToBorder;
+		case aiTextureMapMode_Mirror:
+			return crTextureWrapMode_MirroredRepeat;
+		case aiTextureMapMode_Decal:
+		default:
+			LOG_ERROR ( "Unhandled aiTextureMapMode" );
+			return crTextureWrapMode_Repeat;
+		}
+	}
+
 static MatTexType translate_aiTextureType_to_MatTexType ( const enum aiTextureType assimp_texture_type )
 	{
 	switch ( assimp_texture_type )
@@ -331,8 +348,8 @@ static bool LoadAssimpMaterial ( const struct aiMaterial *AssimpMaterial, Materi
 		if ( ( aiGetMaterialInteger ( AssimpMaterial, AI_MATKEY_MAPPINGMODE_U ( AssimpType, 0 ), &hwrap ) == AI_SUCCESS ) &&
 		        ( aiGetMaterialInteger ( AssimpMaterial, AI_MATKEY_MAPPINGMODE_V ( AssimpType, 0 ), &vwrap ) == AI_SUCCESS ) )
 			{
-			Descriptor->Textures[TextureTypeIterator].WrapSettings.Horizontal = hwrap;
-			Descriptor->Textures[TextureTypeIterator].WrapSettings.Vertical = vwrap;
+			Descriptor->Textures[TextureTypeIterator].WrapSettings.Horizontal = translate_aiWrapMode_to_crTextureWrapMode ( hwrap );
+			Descriptor->Textures[TextureTypeIterator].WrapSettings.Vertical = translate_aiWrapMode_to_crTextureWrapMode ( vwrap );
 			}
 		}
 
@@ -426,10 +443,22 @@ static bool LoadAssimpMesh ( const struct aiMesh *AssimpMesh, MeshDescriptor *De
 		{
 		Descriptor->TexCoords = calloc ( AssimpMesh->mNumVertices, sizeof ( vec2 ) );
 		assert ( Descriptor->TexCoords );
-		for ( unsigned vertex_index = 0; vertex_index < AssimpMesh->mNumVertices; ++vertex_index )
+		for ( unsigned VertexIndex = 0; VertexIndex < AssimpMesh->mNumVertices; ++VertexIndex )
 			{
-			Descriptor->TexCoords[vertex_index].x = AssimpMesh->mTextureCoords[0][vertex_index].x;
-			Descriptor->TexCoords[vertex_index].y = AssimpMesh->mTextureCoords[0][vertex_index].y;
+			Descriptor->TexCoords[VertexIndex].x = AssimpMesh->mTextureCoords[0][VertexIndex].x;
+			Descriptor->TexCoords[VertexIndex].y = AssimpMesh->mTextureCoords[0][VertexIndex].y;
+			}
+		}
+	if (( AssimpMesh->mColors != NULL ) && (AssimpMesh->mColors[0]!=NULL))
+		{
+		Descriptor->Colors = calloc ( AssimpMesh->mNumVertices, sizeof ( vec4 ) );
+		assert ( Descriptor->Colors );
+		for ( unsigned VertexIndex = 0; VertexIndex < AssimpMesh->mNumVertices; ++VertexIndex )
+			{
+			Descriptor->Colors[VertexIndex].x = AssimpMesh->mColors[0][VertexIndex].r;
+			Descriptor->Colors[VertexIndex].y = AssimpMesh->mColors[0][VertexIndex].g;
+			Descriptor->Colors[VertexIndex].z = AssimpMesh->mColors[0][VertexIndex].b;
+			Descriptor->Colors[VertexIndex].w = AssimpMesh->mColors[0][VertexIndex].a;
 			}
 		}
 
@@ -544,7 +573,7 @@ static bool LoadAssimpAnimation ( const struct aiAnimation *AssimpAnimation, Ani
 		CurrentTrack->PositionCount = AssimpAnimation->mChannels[channel_index]->mNumPositionKeys;
 		for ( unsigned KeyIndex = 0; KeyIndex < AssimpAnimation->mChannels[channel_index]->mNumPositionKeys; ++KeyIndex )
 			{
-			CurrentTrack->Positions[KeyIndex].time = AssimpAnimation->mChannels[channel_index]->mPositionKeys[KeyIndex].mTime / TicksPerSecond;
+			CurrentTrack->Positions[KeyIndex].Time = AssimpAnimation->mChannels[channel_index]->mPositionKeys[KeyIndex].mTime / TicksPerSecond;
 			translate_aiVector3D_to_vec3 ( AssimpAnimation->mChannels[channel_index]->mPositionKeys[KeyIndex].mValue, &CurrentTrack->Positions[KeyIndex].Vec3Value );
 			}
 
@@ -553,7 +582,7 @@ static bool LoadAssimpAnimation ( const struct aiAnimation *AssimpAnimation, Ani
 		CurrentTrack->RotationCount = AssimpAnimation->mChannels[channel_index]->mNumRotationKeys;
 		for ( unsigned KeyIndex = 0; KeyIndex < AssimpAnimation->mChannels[channel_index]->mNumRotationKeys; ++KeyIndex )
 			{
-			CurrentTrack->Rotations[KeyIndex].time = AssimpAnimation->mChannels[channel_index]->mRotationKeys[KeyIndex].mTime / TicksPerSecond;
+			CurrentTrack->Rotations[KeyIndex].Time = AssimpAnimation->mChannels[channel_index]->mRotationKeys[KeyIndex].mTime / TicksPerSecond;
 			translate_aiQuaternion_to_quat ( AssimpAnimation->mChannels[channel_index]->mRotationKeys[KeyIndex].mValue, &CurrentTrack->Rotations[KeyIndex].QuatValue );
 			}
 
@@ -562,7 +591,7 @@ static bool LoadAssimpAnimation ( const struct aiAnimation *AssimpAnimation, Ani
 		CurrentTrack->ScaleCount = AssimpAnimation->mChannels[channel_index]->mNumScalingKeys;
 		for ( unsigned KeyIndex = 0; KeyIndex < AssimpAnimation->mChannels[channel_index]->mNumScalingKeys; ++KeyIndex )
 			{
-			CurrentTrack->Scales[KeyIndex].time = AssimpAnimation->mChannels[channel_index]->mScalingKeys[KeyIndex].mTime / TicksPerSecond;
+			CurrentTrack->Scales[KeyIndex].Time = AssimpAnimation->mChannels[channel_index]->mScalingKeys[KeyIndex].mTime / TicksPerSecond;
 			translate_aiVector3D_to_vec3 ( AssimpAnimation->mChannels[channel_index]->mScalingKeys[KeyIndex].mValue, &CurrentTrack->Scales[KeyIndex].Vec3Value );
 			}
 		}
