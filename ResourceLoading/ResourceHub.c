@@ -3,7 +3,7 @@
 #include <Platform/PointerList.h>
 #include <string.h>
 
-#define TotalResourceTypes 5
+#define TotalResourceTypes 6
 
 typedef struct ResourceEntry
 	{
@@ -36,6 +36,10 @@ typedef struct ResourceEntry
 			crShaderCode ShaderCode;
 			bool UseCreator;
 			} ShaderResource;
+		struct
+			{
+			AnimationDescriptor Descriptor;
+			} AnimationResource;
 		};
 	ResourceHub_Type Type;
 	char *Name;
@@ -63,6 +67,7 @@ static const char *Stringify_ResourceHub_Type ( const ResourceHub_Type Value )
 			STRINGIFY ( Mesh );
 			STRINGIFY ( Model );
 			STRINGIFY ( Shader );
+			STRINGIFY ( Animation );
 #undef STRINGIFY
 		}
 	return "Unhandled enum value";
@@ -120,6 +125,11 @@ bool ResourceHub_DestroyEntry ( const ResourceHandle EntryHandle )
 			SAFE_DEL_C ( EntryData->ShaderResource.ShaderCode.GeometryShader );
 			if ( EntryData->ShaderResource.ShaderHandle != crShaderHandle_Invalid )
 				crDeleteShader ( EntryData->ShaderResource.ShaderHandle );
+			break;
+			}
+		case ResourceType_Animation:
+			{
+			DestroyAnimationDescriptor ( &EntryData->AnimationResource.Descriptor );
 			break;
 			}
 		}
@@ -307,6 +317,25 @@ crShaderHandle ResourceHub_GetShaderHandle ( const ResourceHandle EntryHandle )
 	return EntryData->ShaderResource.ShaderHandle;
 	}
 
+bool ResourceHub_SetAnimationDescriptor ( const ResourceHandle EntryHandle, const AnimationDescriptor *Descriptor )
+	{
+	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Animation ) )
+		return false;
+	DestroyAnimationDescriptor ( &EntryData->AnimationResource.Descriptor );
+	CopyAnimationDescriptor ( &EntryData->AnimationResource.Descriptor, Descriptor );
+	EntryData->Built = false;
+	return true;
+	}
+
+AnimationDescriptor *ResourceHub_GetAnimationDescriptor ( const ResourceHandle EntryHandle )
+	{
+	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Animation ) )
+		return NULL;
+	return &EntryData->AnimationResource.Descriptor;
+	}
+
 ResourceHandle ResourceHub_FindResource ( const ResourceHub_Type Type, const char *Name )
 	{
 	PointerListNode *Node = PointerList_GetFirst ( &EntriesByType[Type] );
@@ -430,6 +459,14 @@ bool ResourceHub_BuildResource ( const ResourceHandle EntryHandle )
 				CopyMeshTreeNode ( &EntryData->ModelResource.Data.NodeTree[Index], &EntryData->ModelResource.Descriptor.Nodes[Index] );
 				}
 			EntryData->ModelResource.Data.NodeCount = EntryData->ModelResource.Descriptor.NodeCount;
+			/*EntryData->ModelResource.Data.AnimationCount = EntryData->ModelResource.Descriptor.AnimationCount;
+			if ( ( EntryData->ModelResource.Descriptor.AnimationCount != 0 ) && ( EntryData->ModelResource.Descriptor.Animations != NULL ) )
+				{
+				EntryData->ModelResource.Data.Animations = calloc ( EntryData->ModelResource.Descriptor.AnimationCount, sizeof ( AnimationDescriptor ) );
+				ASSERT_FAIL ( EntryData->ModelResource.Data.Animations != NULL );
+				for ( unsigned AnimationIndex = 0; AnimationIndex < EntryData->ModelResource.Descriptor.AnimationCount; ++AnimationIndex )
+					CopyAnimationDescriptor ( &EntryData->ModelResource.Data.Animations[AnimationIndex], &EntryData->ModelResource.Descriptor.Animations[AnimationIndex] );
+				}*/
 			EntryData->Built = true;
 			return true;
 			}

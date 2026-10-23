@@ -8,6 +8,7 @@
 #include "Camera.h"
 #include "CameraInput.h"
 #include "Utils.h"
+#include "ModelRenderData.h"
 #include "ResourceLoading/ResourceHub.h"
 #include "ResourceLoading/AABB.h"
 #if defined (PLATFORM_COMPILER_GNU)
@@ -69,7 +70,7 @@ static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyC
 					LOG_ERROR ( "Error selecting file" );
 					break;
 					}
-				
+
 				ResourceHub_DestroyAll();
 				DestroyModelRenderData ( &ModelCommands );
 
@@ -314,6 +315,18 @@ int main ( int argc, char *argv[] )
 		ModelTransformDirty = ModelBaseTransform.CachedValues.Dirty;
 		CameraTransformDirty = MainCamera.Transform.CachedValues.Dirty;
 
+		// If this model has bones and an animation is present, update the bone matrices
+		if ( ModelCommands.BoneCount != 0 )
+			{
+			mat4 *MappedPointer = ( mat4* ) crMapShaderBuffer ( ModelCommands.BoneShaderBuffer, crShaderBufferMapAccessType_WriteOnly );
+			if ( MappedPointer == NULL )
+				return -1;
+			for ( unsigned BoneIndex = 0; BoneIndex < ModelCommands.BoneCount; ++BoneIndex )
+				{
+				math_mat4_set_identity_matrix ( MappedPointer + BoneIndex );
+				}
+			crUnmapShaderBuffer ( ModelCommands.BoneShaderBuffer );
+			}
 		// Updating rendering data, if needed
 		if ( CameraTransformDirty )
 			UpdateCameraMatrices ( &MainCamera );
@@ -333,7 +346,7 @@ int main ( int argc, char *argv[] )
 
 		crStartRenderToWindow ( crGetMainWindowHandle() );
 		crClearFramebufferWithDefaultValues ( MainWindowFramebuffer );
-		for ( unsigned Index = 0; Index < ModelCommands.Count; ++Index )
+		for ( unsigned Index = 0; Index < ModelCommands.CommandCount; ++Index )
 			crRunCommand ( ModelCommands.Commands[Index] );
 
 		crDisplayFramebuffer ( MainWindowFramebuffer, crGetMainWindowHandle() );

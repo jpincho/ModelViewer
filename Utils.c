@@ -1,12 +1,7 @@
 #include "Utils.h"
 #include "ResourceLoading/ThreadedFileLoader.h"
-#include <C_CrossRenderer/Shader.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <float.h>
 #include <Platform/Logger.h>
-#include <Platform/Platform.h>
+#include <float.h>
 
 scShaderDefinition BuildShaderDefinitionForMeshData ( const MeshData *InputMeshData )
 	{
@@ -62,7 +57,7 @@ scShaderDefinition BuildShaderDefinitionForMeshData ( const MeshData *InputMeshD
 	if ( ( InputMeshData->BoneCount != 0 ) && ( InputMeshData->BoneIndexStream.BufferHandle != crShaderBufferHandle_Invalid ) && ( InputMeshData->BoneWeightStream.BufferHandle != crShaderBufferHandle_Invalid ) )
 		{
 		ShaderDefinition.Skinning = true;
-		ShaderDefinition.BoneCount = InputMeshData->BoneCount;
+		ShaderDefinition.BoneCount = RoundUpToNearestMultiple ( InputMeshData->BoneCount, 64 );
 		}
 	return ShaderDefinition;
 	}
@@ -89,11 +84,6 @@ bool BuildRenderCommandForMeshData ( crRenderCommand *Command, const MeshData *I
 	crSetRenderCommandShaderBufferBinding ( Command, crGetShaderAttributeHandle ( Shader, scGetStandardAttributeName ( scAttribute_Color ) ), InputMeshData->ColorStream );
 	crSetRenderCommandShaderBufferBinding ( Command, crGetShaderAttributeHandle ( Shader, scGetStandardAttributeName ( scAttribute_Shininess ) ), InputMeshData->ShininessStream );
 	crSetRenderCommandShaderBufferBinding ( Command, crGetShaderAttributeHandle ( Shader, scGetStandardAttributeName ( scAttribute_Emissiveness ) ), InputMeshData->EmissiveStream );
-	if ( ( InputMeshData->BoneCount != 0 ) && ( InputMeshData->BoneIndexStream.BufferHandle != crShaderBufferHandle_Invalid ) && ( InputMeshData->BoneWeightStream.BufferHandle != crShaderBufferHandle_Invalid ) )
-		{
-		crSetRenderCommandShaderBufferBinding ( Command, crGetShaderAttributeHandle ( Shader, scGetStandardAttributeName ( scAttribute_BoneIndex ) ), InputMeshData->BoneIndexStream );
-		crSetRenderCommandShaderBufferBinding ( Command, crGetShaderAttributeHandle ( Shader, scGetStandardAttributeName ( scAttribute_BoneWeight ) ), InputMeshData->BoneWeightStream );
-		}
 	crSetRenderCommandIndexShaderBufferBinding ( Command, InputMeshData->IndexStream );
 
 	for ( unsigned TypeIterator = 0; TypeIterator < MatTexType_Count; ++TypeIterator )
@@ -104,6 +94,13 @@ bool BuildRenderCommandForMeshData ( crRenderCommand *Command, const MeshData *I
 			}
 		}
 
+	// Skinning
+	if ( ( InputMeshData->BoneCount != 0 ) && ( InputMeshData->BoneIndexStream.BufferHandle != crShaderBufferHandle_Invalid ) && ( InputMeshData->BoneWeightStream.BufferHandle != crShaderBufferHandle_Invalid ) )
+		{
+		crSetRenderCommandShaderBufferBinding ( Command, crGetShaderAttributeHandle ( Shader, scGetStandardAttributeName ( scAttribute_BoneIndex ) ), InputMeshData->BoneIndexStream );
+		crSetRenderCommandShaderBufferBinding ( Command, crGetShaderAttributeHandle ( Shader, scGetStandardAttributeName ( scAttribute_BoneWeight ) ), InputMeshData->BoneWeightStream );
+		}
+
 	Command->Primitive = crTriangleList;
 	Command->StartVertex = 0;
 	Command->VertexCount = InputMeshData->VertexCount;
@@ -111,139 +108,81 @@ bool BuildRenderCommandForMeshData ( crRenderCommand *Command, const MeshData *I
 	crSetRenderStateToDefault ( &Command->State );
 	Command->State.Culling.Enabled = true;
 	Command->State.DepthTest.Enabled = true;
-	return true;
+	return crSanityCheckRenderCommand ( Command ) == 0;
 	}
 
-bool BuildModelRenderData ( ModelRenderData *RenderData, const ModelData *InputModelData )
+void ComputeMeshTreeNodeWorldMatrices ( const MeshTreeNode *NodeTree, const unsigned NodeCount, mat4 *WorldMatrices )
 	{
-	memset ( RenderData, 0, sizeof ( ModelRenderData ) );
-
-	unsigned TotalMeshCount = 0;
-	for ( unsigned NodeIndex = 0; NodeIndex < InputModelData->NodeCount; ++NodeIndex )
-		TotalMeshCount += InputModelData->NodeTree[NodeIndex].MeshIndexCount;
-
-	if ( TotalMeshCount == 0 )
-		return false;
-
-	RenderData->Count = TotalMeshCount;
-	RenderData->Commands = calloc ( TotalMeshCount, sizeof ( crRenderCommand ) );
-	RenderData->NodeIndices = calloc ( TotalMeshCount, sizeof ( unsigned ) );
-	if ( ( RenderData->Commands == NULL ) || ( RenderData->NodeIndices == NULL ) )
+	for ( unsigned Index = 0; Index < NodeCount; ++Index )
 		{
-		DestroyModelRenderData ( RenderData );
-		return false;
-		}
-
-	unsigned *MeshIndices = alloca ( TotalMeshCount * sizeof ( unsigned ) );
-	unsigned CurrentPosition = 0;
-	for ( unsigned NodeIndex = 0; NodeIndex < InputModelData->NodeCount; ++NodeIndex )
-		{
-		for ( unsigned MeshIndex = 0; MeshIndex < InputModelData->NodeTree[NodeIndex].MeshIndexCount; ++MeshIndex )
+		const int Parent = NodeTree[Index].ParentNode;
+		if ( Parent < 0 )
+			math_mat4_copy ( &WorldMatrices[Index], NodeTree[Index].DefaultTransformationMatrix );
+		else if ( ( unsigned ) Parent < Index )
+			math_mat4_multiply ( &WorldMatrices[Index], WorldMatrices[Parent], NodeTree[Index].DefaultTransformationMatrix );
+		else
 			{
-			const unsigned MeshArrayIndex = InputModelData->NodeTree[NodeIndex].MeshIndices[MeshIndex];
-			if ( MeshArrayIndex >= InputModelData->MeshCount )
+			mat4 Accumulated;
+			math_mat4_copy ( &Accumulated, NodeTree[Index].DefaultTransformationMatrix );
+			int Walk = Parent;
+			while ( Walk >= 0 )
 				{
-				LOG_ERROR ( "Node '%s' references invalid mesh index %u", InputModelData->NodeTree[NodeIndex].NodeName, MeshArrayIndex );
-				continue;
+				mat4 Combined;
+				math_mat4_multiply ( &Combined, NodeTree[Walk].DefaultTransformationMatrix, Accumulated );
+				math_mat4_copy ( &Accumulated, Combined );
+				Walk = NodeTree[Walk].ParentNode;
 				}
-			MeshIndices[CurrentPosition] = MeshArrayIndex;
-			RenderData->NodeIndices[CurrentPosition] = NodeIndex;
-			++CurrentPosition;
-			}
-		}
-
-	RenderData->Count = CurrentPosition;
-	if ( RenderData->Count == 0 )
-		{
-		DestroyModelRenderData ( RenderData );
-		return false;
-		}
-
-	// If I'm unable to generate the shader for some mesh, keep going with the other meshes
-	unsigned Written = 0;
-	for ( unsigned Index = 0; Index < RenderData->Count; ++Index )
-		{
-		scShaderDefinition ShaderDefs = BuildShaderDefinitionForMeshData ( InputModelData->Meshes + MeshIndices[Index] );
-		ShaderDefs.LightModel = scLightModel_Off;
-		crShaderHandle Shader = scAssembleShader ( ShaderDefs );
-		if ( Shader == crShaderHandle_Invalid )
-			{
-			LOG_ERROR ( "Unable to assemble shader for mesh %u", MeshIndices[Index] );
-			continue;
-			}
-
-		RenderData->NodeIndices[Written] = RenderData->NodeIndices[Index];
-		crSetRenderCommandShader ( RenderData->Commands + Written, Shader );
-		BuildRenderCommandForMeshData ( RenderData->Commands + Written, InputModelData->Meshes + MeshIndices[Index], Shader );
-		++Written;
-		}
-	RenderData->Count = Written;
-	if ( RenderData->Count == 0 )
-		{
-		DestroyModelRenderData ( RenderData );
-		return false;
-		}
-	RenderData->OriginalModelData = InputModelData;
-	return true;
-	}
-
-void UpdateModelRenderData ( const ModelRenderData *RenderData, BaseTransformStruct *Transform, const float Scale, const mat4 ViewMatrix, const mat4 ProjectionMatrix )
-	{
-	mat4 GlobalMatrix;
-	GetTransformationMatrix ( Transform, &GlobalMatrix );
-
-	mat4 ScaleMatrix;
-	math_mat4_set_scale_matrix ( &ScaleMatrix, ( vec3 ) { Scale, Scale, Scale } );
-	mat4 ScaledGlobalMatrix;
-	math_mat4_multiply ( &ScaledGlobalMatrix, ScaleMatrix, GlobalMatrix );
-
-	mat4 *NodeWorldMatrices = alloca ( RenderData->OriginalModelData->NodeCount * sizeof ( mat4 ) );
-	ComputeMeshTreeNodeWorldMatrices ( RenderData->OriginalModelData->NodeTree, RenderData->OriginalModelData->NodeCount, NodeWorldMatrices );
-
-	for ( unsigned Index = 0; Index < RenderData->Count; ++Index )
-		{
-		const unsigned NodeIndex = RenderData->NodeIndices[Index];
-		mat4 ModelMatrix;
-		math_mat4_multiply ( &ModelMatrix, ScaledGlobalMatrix, NodeWorldMatrices[NodeIndex] );
-
-		crRenderCommand *Command = &RenderData->Commands[Index];
-		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ModelMatrix" ), ModelMatrix );
-		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ViewMatrix" ), ViewMatrix );
-		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ProjectionMatrix" ), ProjectionMatrix );
-
-		mat3 InvertedModelMatrix;
-		math_mat3_from_mat4 ( &InvertedModelMatrix, ModelMatrix );
-		math_mat3_invert ( &InvertedModelMatrix, InvertedModelMatrix );
-		mat3 NormalMatrix;
-		math_mat3_transpose ( &NormalMatrix, InvertedModelMatrix );
-		crSetRenderCommandUniformMatrix3Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_NormalMatrix" ), NormalMatrix );
-
-		// Set default bone matrices to identity
-		mat4 BindBoneMatrix;
-		math_mat4_set_identity_matrix ( &BindBoneMatrix );
-		for ( unsigned BoneIndex = 0; ; ++BoneIndex )
-			{
-			char BoneUniformName[64];
-			snprintf ( BoneUniformName, sizeof ( BoneUniformName ), "uBoneMatrices[%u]", BoneIndex );
-			crShaderUniformHandle BoneHandle = crGetShaderUniformHandle ( Command->Shader, BoneUniformName );
-			if ( BoneHandle == crShaderUniformHandle_Invalid )
-				break;
-			crSetRenderCommandUniformMatrix4Value ( Command, BoneHandle, BindBoneMatrix );
+			math_mat4_copy ( &WorldMatrices[Index], Accumulated );
 			}
 		}
 	}
+/*
+float CalculateScaleToFit ( const AABB BBox, const float CameraDistance, const float VerticalFOV, const float AspectRatio )
+{
+vec3 Delta = math_subtract_vec3_from_vec3 ( BBox.Max, BBox.Min );
+float Radius = 0.5f * math_vec3_length ( Delta );
+float HalfVerticalFOV = VerticalFOV * 0.5f;
+float HalfHorizontalFOV = atanf ( tanf ( HalfVerticalFOV ) * AspectRatio );
 
-void DestroyModelRenderData ( ModelRenderData *RenderData )
+float SmallerFOV = fminf ( HalfVerticalFOV, HalfHorizontalFOV );
+
+return CameraDistance * sinf ( SmallerFOV ) / Radius;
+}
+*/
+float CalculateScaleToFit2 ( const AABB BBox, const float CameraDistance, const float VerticalFOV, const float AspectRatio )
 	{
-	if ( RenderData->Commands != NULL )
+	float tan_y = tanf ( VerticalFOV * 0.5f );
+	float tan_x = tan_y * AspectRatio;
+
+	float max_scale = FLT_MAX;
+
+	vec3 Corners[8];
+	AABB_CalculateCorners ( BBox, Corners );
+	for ( int i = 0; i < 8; ++i )
 		{
-		for ( unsigned Index = 0; Index < RenderData->Count; ++Index )
-			SAFE_DELETE_SHADER ( RenderData->Commands[Index].Shader );
+		float x = fabsf ( Corners[i].x );
+		float y = fabsf ( Corners[i].y );
+		float z = Corners[i].z;
+
+		float dx = x - tan_x * z;
+		float dy = y - tan_y * z;
+
+		if ( dx > 0.0f )
+			{
+			float sx = CameraDistance * tan_x / dx;
+			if ( sx < max_scale )
+				max_scale = sx;
+			}
+
+		if ( dy > 0.0f )
+			{
+			float sy = CameraDistance * tan_y / dy;
+			if ( sy < max_scale )
+				max_scale = sy;
+			}
 		}
-	SAFE_DEL_C ( RenderData->Commands );
-	SAFE_DEL_C ( RenderData->NodeIndices );
-	RenderData->Count = 0;
-	RenderData->OriginalModelData = NULL;
+
+	return max_scale == FLT_MAX ? 1.0f : max_scale;
 	}
 
 ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *ResourceName )
@@ -332,6 +271,12 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 		ResourceHub_SetMeshDescriptor ( NewResource, &ModelFileData->Meshes[Index] );
 		}
 
+	for ( unsigned Index = 0; Index < ModelFileData->AnimationCount; ++Index )
+		{
+		ResourceHandle NewResource = ResourceHub_CreateEntry ( ResourceType_Animation, ModelFileData->Animations[Index].AnimationName );
+		ResourceHub_SetAnimationDescriptor ( NewResource, &ModelFileData->Animations[Index] );
+		}
+
 	ModelDescriptor NewModelDescriptor = { 0 };
 	NewModelDescriptor.MeshCount = ModelFileData->MeshCount;
 	NewModelDescriptor.Meshes = ModelFileData->Meshes;
@@ -343,80 +288,6 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 	ResourceHub_SetModelDescriptor ( NewResource, &NewModelDescriptor );
 	ThreadedFileLoader_UnloadResourceFile ( FileIndex );
 	return NewResource;
-	}
-
-void ComputeMeshTreeNodeWorldMatrices ( const MeshTreeNode *NodeTree, const unsigned NodeCount, mat4 *WorldMatrices )
-	{
-	for ( unsigned Index = 0; Index < NodeCount; ++Index )
-		{
-		const int Parent = NodeTree[Index].ParentNode;
-		if ( Parent < 0 )
-			math_mat4_copy ( &WorldMatrices[Index], NodeTree[Index].DefaultTransformationMatrix );
-		else if ( ( unsigned ) Parent < Index )
-			math_mat4_multiply ( &WorldMatrices[Index], WorldMatrices[Parent], NodeTree[Index].DefaultTransformationMatrix );
-		else
-			{
-			mat4 Accumulated;
-			math_mat4_copy ( &Accumulated, NodeTree[Index].DefaultTransformationMatrix );
-			int Walk = Parent;
-			while ( Walk >= 0 )
-				{
-				mat4 Combined;
-				math_mat4_multiply ( &Combined, NodeTree[Walk].DefaultTransformationMatrix, Accumulated );
-				math_mat4_copy ( &Accumulated, Combined );
-				Walk = NodeTree[Walk].ParentNode;
-				}
-			math_mat4_copy ( &WorldMatrices[Index], Accumulated );
-			}
-		}
-	}
-
-float CalculateScaleToFit ( const AABB BBox, const float CameraDistance, const float VerticalFOV, const float AspectRatio )
-	{
-	vec3 Delta = math_subtract_vec3_from_vec3 ( BBox.Max, BBox.Min );
-	float Radius = 0.5f * math_vec3_length ( Delta );
-	float HalfVerticalFOV = VerticalFOV * 0.5f;
-	float HalfHorizontalFOV = atanf ( tanf ( HalfVerticalFOV ) * AspectRatio );
-
-	float SmallerFOV = fminf ( HalfVerticalFOV, HalfHorizontalFOV );
-
-	return CameraDistance * sinf ( SmallerFOV ) / Radius;
-	}
-
-float CalculateScaleToFit2 ( const AABB BBox, const float CameraDistance, const float VerticalFOV, const float AspectRatio )
-	{
-	float tan_y = tanf ( VerticalFOV * 0.5f );
-	float tan_x = tan_y * AspectRatio;
-
-	float max_scale = FLT_MAX;
-
-	vec3 Corners[8];
-	AABB_CalculateCorners ( BBox, Corners );
-	for ( int i = 0; i < 8; ++i )
-		{
-		float x = fabsf ( Corners[i].x );
-		float y = fabsf ( Corners[i].y );
-		float z = Corners[i].z;
-
-		float dx = x - tan_x * z;
-		float dy = y - tan_y * z;
-
-		if ( dx > 0.0f )
-			{
-			float sx = CameraDistance * tan_x / dx;
-			if ( sx < max_scale )
-				max_scale = sx;
-			}
-
-		if ( dy > 0.0f )
-			{
-			float sy = CameraDistance * tan_y / dy;
-			if ( sy < max_scale )
-				max_scale = sy;
-			}
-		}
-
-	return max_scale == FLT_MAX ? 1.0f : max_scale;
 	}
 
 void AdjustToFit ( const AABB BBox, CameraData *Camera, float *Scale )
@@ -433,4 +304,10 @@ void AdjustToFit ( const AABB BBox, CameraData *Camera, float *Scale )
 	Camera->Transform.Position.x = 0.0f;
 	Camera->Transform.Position.y = CenteredBBox.Max.y * *Scale;
 	Camera->Transform.Position.x = 0.0f;
+	}
+
+unsigned RoundUpToNearestMultiple ( const unsigned Number, const unsigned Multiple )
+	{
+	assert ( Multiple );
+	return ( ( Number + Multiple - 1 ) / Multiple ) * Multiple;
 	}
