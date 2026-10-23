@@ -17,3 +17,5 @@ typedef struct ModelDescriptor
 void LogModelDescriptor ( const ModelDescriptor Descriptor, const int Indentation );
 void CopyModelDescriptor ( ModelDescriptor *Output, const ModelDescriptor *Input );
 void DestroyModelDescriptor ( ModelDescriptor *Descriptor );
+void ComputeMeshTreeNodeWorldMatrices ( const MeshTreeNode *NodeTree, const unsigned NodeCount, mat4 *WorldMatrices );
+void CalculateModelDescriptorAABB ( ModelDescriptor *Descriptor );

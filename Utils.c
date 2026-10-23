@@ -111,31 +111,6 @@ bool BuildRenderCommandForMeshData ( crRenderCommand *Command, const MeshData *I
 	return crSanityCheckRenderCommand ( Command ) == 0;
 	}
 
-void ComputeMeshTreeNodeWorldMatrices ( const MeshTreeNode *NodeTree, const unsigned NodeCount, mat4 *WorldMatrices )
-	{
-	for ( unsigned Index = 0; Index < NodeCount; ++Index )
-		{
-		const int Parent = NodeTree[Index].ParentNode;
-		if ( Parent < 0 )
-			math_mat4_copy ( &WorldMatrices[Index], NodeTree[Index].DefaultTransformationMatrix );
-		else if ( ( unsigned ) Parent < Index )
-			math_mat4_multiply ( &WorldMatrices[Index], WorldMatrices[Parent], NodeTree[Index].DefaultTransformationMatrix );
-		else
-			{
-			mat4 Accumulated;
-			math_mat4_copy ( &Accumulated, NodeTree[Index].DefaultTransformationMatrix );
-			int Walk = Parent;
-			while ( Walk >= 0 )
-				{
-				mat4 Combined;
-				math_mat4_multiply ( &Combined, NodeTree[Walk].DefaultTransformationMatrix, Accumulated );
-				math_mat4_copy ( &Accumulated, Combined );
-				Walk = NodeTree[Walk].ParentNode;
-				}
-			math_mat4_copy ( &WorldMatrices[Index], Accumulated );
-			}
-		}
-	}
 /*
 float CalculateScaleToFit ( const AABB BBox, const float CameraDistance, const float VerticalFOV, const float AspectRatio )
 {
@@ -283,7 +258,7 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 	NewModelDescriptor.Name = ( char * ) ResourceName;
 	NewModelDescriptor.NodeCount = ModelFileData->NodeCount;
 	NewModelDescriptor.Nodes = ModelFileData->NodeTree;
-
+	CalculateModelDescriptorAABB ( &NewModelDescriptor );
 	ResourceHandle NewResource = ResourceHub_CreateEntry ( ResourceType_Model, ResourceName );
 	ResourceHub_SetModelDescriptor ( NewResource, &NewModelDescriptor );
 	ThreadedFileLoader_UnloadResourceFile ( FileIndex );
