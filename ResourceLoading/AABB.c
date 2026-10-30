@@ -1,19 +1,19 @@
 #include "AABB.h"
 #include <float.h>
 
-void BoundingSphere_InitEmpty ( BoundingSphere *Sphere )
+void BoundingSphere_InitEmpty ( struct BoundingSphere *Sphere )
 	{
 	Sphere->Center = MATH_VEC3_ZERO;
 	Sphere->Radius = 0.0f;
 	}
 
-void AABB_InitEmpty ( AABB *Box )
+void AABB_InitEmpty ( struct AABB *Box )
 	{
 	Box->Min.x = Box->Min.y = Box->Min.z = FLT_MAX;
 	Box->Max.x = Box->Max.y = Box->Max.z = -FLT_MAX;
 	}
 
-void AABB_Join ( AABB *Output, const AABB *First, const AABB *Second )
+void AABB_Join ( struct AABB *Output, const struct AABB *First, const struct AABB *Second )
 	{
 	Output->Min.x = fminf ( First->Min.x, Second->Min.x );
 	Output->Min.y = fminf ( First->Min.y, Second->Min.y );
@@ -23,7 +23,7 @@ void AABB_Join ( AABB *Output, const AABB *First, const AABB *Second )
 	Output->Max.z = fmaxf ( First->Max.z, Second->Max.z );
 	}
 
-void AABB_IncludePoint ( AABB *Box, const vec3 Point )
+void AABB_IncludePoint ( struct AABB *Box, const vec3 Point )
 	{
 	Box->Min.x = fminf ( Box->Min.x, Point.x );
 	Box->Min.y = fminf ( Box->Min.y, Point.y );
@@ -33,7 +33,7 @@ void AABB_IncludePoint ( AABB *Box, const vec3 Point )
 	Box->Max.z = fmaxf ( Box->Max.z, Point.z );
 	}
 
-void AABB_Transform ( AABB *Output, const AABB *Input, const mat4 *Transform )
+void AABB_Transform ( struct AABB *Output, const struct AABB *Input, const mat4 *Transform )
 	{
 	AABB_InitEmpty ( Output );
 
@@ -59,7 +59,7 @@ void AABB_Transform ( AABB *Output, const AABB *Input, const mat4 *Transform )
 		}
 	}
 
-bool AABB_DoBoxesIntersect ( const AABB Box1, const AABB Box2 )
+bool AABB_DoBoxesIntersect ( const struct AABB Box1, const struct AABB Box2 )
 	{
 	if ( ( ( Box1.Min.x > Box2.Max.x ) || ( Box1.Max.x < Box2.Min.x ) ) ||
 	        ( ( Box1.Min.y > Box2.Max.y ) || ( Box1.Max.y < Box2.Min.y ) ) ||
@@ -68,14 +68,14 @@ bool AABB_DoBoxesIntersect ( const AABB Box1, const AABB Box2 )
 	return true;
 	}
 
-bool AABB_FitsInside ( const AABB Outer, const AABB Inner )
+bool AABB_FitsInside ( const struct AABB Outer, const struct AABB Inner )
 	{
 	return ( ( Inner.Min.x >= Outer.Min.x ) && ( Inner.Max.x <= Outer.Max.x ) &&
 	         ( Inner.Min.y >= Outer.Min.y ) && ( Inner.Max.y <= Outer.Max.y ) &&
 	         ( Inner.Min.z >= Outer.Min.z ) && ( Inner.Max.z <= Outer.Max.z ) );
 	}
 
-void AABB_CalculateCorners ( const AABB Box, vec3 Corners[8] )
+void AABB_CalculateCorners ( const struct AABB Box, vec3 Corners[8] )
 	{
 	Corners[0] = MAKE_VEC3 ( Box.Min.x, Box.Min.y, Box.Min.z );
 	Corners[1] = MAKE_VEC3 ( Box.Min.x, Box.Min.y, Box.Max.z );

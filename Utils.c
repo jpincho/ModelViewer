@@ -3,7 +3,7 @@
 #include <Platform/Logger.h>
 #include <float.h>
 
-scShaderDefinition BuildShaderDefinitionForMeshData ( const MeshData *InputMeshData )
+scShaderDefinition BuildShaderDefinitionForMeshData ( const struct MeshData *InputMeshData )
 	{
 	scShaderDefinition ShaderDefinition = { 0 };
 
@@ -62,7 +62,7 @@ scShaderDefinition BuildShaderDefinitionForMeshData ( const MeshData *InputMeshD
 	return ShaderDefinition;
 	}
 
-bool BuildRenderCommandForMeshData ( crRenderCommand *Command, const MeshData *InputMeshData, const crShaderHandle Shader )
+bool BuildRenderCommandForMeshData ( crRenderCommand *Command, const struct MeshData *InputMeshData, const crShaderHandle Shader )
 	{
 	Command->IndexBufferStream = InputMeshData->IndexStream;
 	Command->InstanceCount = 1;
@@ -112,7 +112,7 @@ bool BuildRenderCommandForMeshData ( crRenderCommand *Command, const MeshData *I
 	}
 
 /*
-float CalculateScaleToFit ( const AABB BBox, const float CameraDistance, const float VerticalFOV, const float AspectRatio )
+float CalculateScaleToFit ( const struct AABB BBox, const float CameraDistance, const float VerticalFOV, const float AspectRatio )
 {
 vec3 Delta = math_subtract_vec3_from_vec3 ( BBox.Max, BBox.Min );
 float Radius = 0.5f * math_vec3_length ( Delta );
@@ -124,7 +124,7 @@ float SmallerFOV = fminf ( HalfVerticalFOV, HalfHorizontalFOV );
 return CameraDistance * sinf ( SmallerFOV ) / Radius;
 }
 */
-float CalculateScaleToFit2 ( const AABB BBox, const float CameraDistance, const float VerticalFOV, const float AspectRatio )
+float CalculateScaleToFit2 ( const struct AABB BBox, const float CameraDistance, const float VerticalFOV, const float AspectRatio )
 	{
 	float tan_y = tanf ( VerticalFOV * 0.5f );
 	float tan_x = tan_y * AspectRatio;
@@ -182,7 +182,7 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 	if ( LastSlash != NULL )
 		*LastSlash = 0;
 
-	DataFileContentDescriptor *ModelFileData = ThreadedFileLoader_GetFileContentDescriptor ( FileIndex );
+	struct DataFileContentDescriptor *ModelFileData = ThreadedFileLoader_GetFileContentDescriptor ( FileIndex );
 	if ( ModelFileData == NULL )
 		return ResourceHandle_Invalid;
 
@@ -213,7 +213,7 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 				LOG_ERROR ( "Unable to find loaded file '%s'", FullTexturePath );
 				continue;
 				}
-			DataFileContentDescriptor *TextureFileData = ThreadedFileLoader_GetFileContentDescriptor ( FileIndex );
+			struct DataFileContentDescriptor *TextureFileData = ThreadedFileLoader_GetFileContentDescriptor ( FileIndex );
 			if ( TextureFileData->TextureCount != 1 )
 				{
 				LOG_ERROR ( "Unexpected texture count %u for file '%s'", TextureFileData->TextureCount, FullTexturePath );
@@ -252,7 +252,7 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 		ResourceHub_SetAnimationDescriptor ( NewResource, &ModelFileData->Animations[Index] );
 		}
 
-	ModelDescriptor NewModelDescriptor = { 0 };
+	struct ModelDescriptor NewModelDescriptor = { 0 };
 	NewModelDescriptor.MeshCount = ModelFileData->MeshCount;
 	NewModelDescriptor.Meshes = ModelFileData->Meshes;
 	NewModelDescriptor.Name = ( char * ) ResourceName;
@@ -265,10 +265,10 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 	return NewResource;
 	}
 
-void AdjustToFit ( const AABB BBox, CameraData *Camera, float *Scale )
+void AdjustToFit ( const struct AABB BBox, struct CameraData *Camera, float *Scale )
 	{
 	// Center BBox around (0,0,0)
-	AABB CenteredBBox;
+	struct AABB CenteredBBox;
 	CenteredBBox.Min = math_subtract_vec3_from_vec3 ( BBox.Max, BBox.Min );
 	CenteredBBox.Min = math_multiply_vec3_by_scalar ( CenteredBBox.Min, -0.5f );
 

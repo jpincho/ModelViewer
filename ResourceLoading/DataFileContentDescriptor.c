@@ -1,6 +1,6 @@
 #include "DataFileContentDescriptor.h"
 
-void DestroyDataFileContentDescriptor ( DataFileContentDescriptor *Descriptor )
+void DestroyDataFileContentDescriptor ( struct DataFileContentDescriptor *Descriptor )
 	{
 	for ( unsigned index = 0; index < Descriptor->MeshCount; ++index )
 		{

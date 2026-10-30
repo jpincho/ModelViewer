@@ -4,9 +4,9 @@
 #include <Platform/Platform.h>
 #include "Utils.h"
 
-bool BuildModelRenderData ( ModelRenderData *RenderData, const ModelData *InputModelData )
+bool BuildModelRenderData ( struct ModelRenderData *RenderData, const struct ModelData *InputModelData )
 	{
-	memset ( RenderData, 0, sizeof ( ModelRenderData ) );
+	memset ( RenderData, 0, sizeof ( struct ModelRenderData ) );
 
 	// first, count how many meshes I have to draw ( even if there are multiple instances of the same )
 	unsigned TotalMeshCount = 0;
@@ -20,14 +20,14 @@ bool BuildModelRenderData ( ModelRenderData *RenderData, const ModelData *InputM
 	RenderData->CommandCount = TotalMeshCount;
 	RenderData->Commands = calloc ( TotalMeshCount, sizeof ( crRenderCommand ) );
 	RenderData->NodeIndices = calloc ( TotalMeshCount, sizeof ( unsigned ) );
-	if ( ( RenderData->Commands == NULL ) || ( RenderData->NodeIndices == NULL ) )
+	RenderData->MeshIndices = calloc ( TotalMeshCount, sizeof ( unsigned ) );
+	if ( ( RenderData->Commands == NULL ) || ( RenderData->NodeIndices == NULL ) || ( RenderData->MeshIndices == NULL ) )
 		{
 		DestroyModelRenderData ( RenderData );
 		return false;
 		}
 
 	// Iterate again, filling the MeshIndices array, specifying which mesh each render command refers to
-	unsigned *MeshIndices = alloca ( TotalMeshCount * sizeof ( unsigned ) );
 	unsigned CurrentPosition = 0;
 	for ( unsigned NodeIndex = 0; NodeIndex < InputModelData->NodeCount; ++NodeIndex )
 		{
@@ -39,7 +39,7 @@ bool BuildModelRenderData ( ModelRenderData *RenderData, const ModelData *InputM
 				LOG_ERROR ( "Node '%s' references invalid mesh index %u", InputModelData->NodeTree[NodeIndex].NodeName, MeshArrayIndex );
 				continue;
 				}
-			MeshIndices[CurrentPosition] = MeshArrayIndex;
+			RenderData->MeshIndices[CurrentPosition] = MeshArrayIndex;
 			RenderData->NodeIndices[CurrentPosition] = NodeIndex;
 			++CurrentPosition;
 			}
@@ -51,20 +51,20 @@ bool BuildModelRenderData ( ModelRenderData *RenderData, const ModelData *InputM
 	// Generate shaders for every mesh
 	for ( unsigned Index = 0; Index < RenderData->CommandCount; ++Index )
 		{
-		scShaderDefinition ShaderDefs = BuildShaderDefinitionForMeshData ( InputModelData->Meshes + MeshIndices[Index] );
+		scShaderDefinition ShaderDefs = BuildShaderDefinitionForMeshData ( InputModelData->Meshes + RenderData->MeshIndices[Index] );
 		ShaderDefs.LightModel = scLightModel_Off;
 		crShaderHandle Shader = scAssembleShader ( ShaderDefs );
 		if ( Shader == crShaderHandle_Invalid )
 			{
-			LOG_ERROR ( "Unable to assemble shader for mesh %u", MeshIndices[Index] );
+			LOG_ERROR ( "Unable to assemble shader for mesh %u", RenderData->MeshIndices[Index] );
 			goto OnError;
 			}
 
 		RenderData->NodeIndices[Index] = RenderData->NodeIndices[Index];
 		crSetRenderCommandShader ( RenderData->Commands + Index, Shader );
-		if ( BuildRenderCommandForMeshData ( RenderData->Commands + Index, InputModelData->Meshes + MeshIndices[Index], Shader ) == false )
+		if ( BuildRenderCommandForMeshData ( RenderData->Commands + Index, InputModelData->Meshes + RenderData->MeshIndices[Index], Shader ) == false )
 			{
-			LOG_ERROR ( "Unable to build render command for mesh %u", MeshIndices[Index] );
+			LOG_ERROR ( "Unable to build render command for mesh %u", RenderData->MeshIndices[Index] );
 			goto OnError;
 			}
 		}
@@ -74,7 +74,7 @@ bool BuildModelRenderData ( ModelRenderData *RenderData, const ModelData *InputM
 	unsigned BoneCount = 0;
 	for ( unsigned Index = 0; Index < TotalMeshCount; ++Index )
 		{
-		BoneCount += ( InputModelData->Meshes + MeshIndices[Index] )->BoneCount;
+		BoneCount += ( InputModelData->Meshes + RenderData->MeshIndices[Index] )->BoneCount;
 		}
 	if ( BoneCount != 0 )
 		{
@@ -111,7 +111,7 @@ OnError:
 	return false;
 	}
 
-void UpdateModelRenderData ( const ModelRenderData *RenderData, BaseTransformStruct *Transform, const float Scale, const mat4 ViewMatrix, const mat4 ProjectionMatrix )
+void UpdateModelRenderData ( const struct ModelRenderData *RenderData, struct BaseTransform *Transform, const float Scale, const mat4 ViewMatrix, const mat4 ProjectionMatrix )
 	{
 	mat4 GlobalMatrix;
 	GetTransformationMatrix ( Transform, &GlobalMatrix );
@@ -157,7 +157,7 @@ void UpdateModelRenderData ( const ModelRenderData *RenderData, BaseTransformStr
 		}
 	}
 
-void DestroyModelRenderData ( ModelRenderData *RenderData )
+void DestroyModelRenderData ( struct ModelRenderData *RenderData )
 	{
 	if ( RenderData->Commands != NULL )
 		{
@@ -169,6 +169,7 @@ void DestroyModelRenderData ( ModelRenderData *RenderData )
 		}
 	SAFE_DEL_C ( RenderData->Commands );
 	SAFE_DEL_C ( RenderData->NodeIndices );
+	SAFE_DEL_C ( RenderData->MeshIndices );
 	SAFE_DELETE_SHADER_BUFFER ( RenderData->BoneShaderBuffer );
 	RenderData->BoneCount = 0;
 	RenderData->CommandCount = 0;

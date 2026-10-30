@@ -1,17 +1,17 @@
 #include "Camera.h"
-void SetCameraPosition ( CameraData *Camera, const vec3 NewPosition )
+void SetCameraPosition ( struct CameraData *Camera, const vec3 NewPosition )
 	{
 	Camera->Transform.Position = NewPosition;
 	Camera->Transform.CachedValues.Dirty = true;
 	}
 
-void SetCameraOrientation ( CameraData *Camera, const quat NewOrientation )
+void SetCameraOrientation ( struct CameraData *Camera, const quat NewOrientation )
 	{
 	Camera->Transform.Orientation = NewOrientation;
 	Camera->Transform.CachedValues.Dirty = true;
 	}
 
-void SetCameraPerspectiveParameters ( CameraData *Camera, const float NewFOV, const float NewAspectRatio, const float NewNear, const float NewFar )
+void SetCameraPerspectiveParameters ( struct CameraData *Camera, const float NewFOV, const float NewAspectRatio, const float NewNear, const float NewFar )
 	{
 	Camera->PerspectiveParameters.AspectRatio = NewAspectRatio;
 	Camera->PerspectiveParameters.Far = NewFar;
@@ -21,7 +21,7 @@ void SetCameraPerspectiveParameters ( CameraData *Camera, const float NewFOV, co
 	math_mat4_multiply ( &Camera->CachedValues.ViewProjectionMatrix, Camera->CachedValues.ProjectionMatrix, Camera->CachedValues.ViewMatrix );
 	}
 
-void UpdateCameraMatrices ( CameraData *Camera )
+void UpdateCameraMatrices ( struct CameraData *Camera )
 	{
 	if ( Camera->Transform.CachedValues.Dirty == false )
 		return;

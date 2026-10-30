@@ -3,16 +3,17 @@
 #include "ResourceLoading/ModelData.h"
 #include "BaseTransform.h"
 
-typedef struct
+struct ModelRenderData
 	{
 	crRenderCommand *Commands;
-	const ModelData *OriginalModelData;
+	const struct ModelData *OriginalModelData;
 	crShaderBufferHandle BoneShaderBuffer;
 	unsigned BoneCount;
 	unsigned *NodeIndices;
+	unsigned *MeshIndices;
 	unsigned CommandCount;
-	} ModelRenderData;
+	};
 
-bool BuildModelRenderData ( ModelRenderData *Output, const ModelData *InputModelData );
-void UpdateModelRenderData ( const ModelRenderData *RenderData, BaseTransformStruct *Transform, const float Scale, const mat4 ViewMatrix, const mat4 ProjectionMatrix );
-void DestroyModelRenderData ( ModelRenderData *RenderData );
+bool BuildModelRenderData ( struct ModelRenderData *RenderData, const struct ModelData *InputModelData );
+void UpdateModelRenderData ( const struct ModelRenderData *RenderData, struct BaseTransform *Transform, const float Scale, const mat4 ViewMatrix, const mat4 ProjectionMatrix );
+void DestroyModelRenderData ( struct ModelRenderData *RenderData );

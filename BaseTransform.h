@@ -3,7 +3,7 @@
 #include <Math/mathlib.h>
 
 BEGIN_C_DECLARATIONS
-typedef struct
+struct BaseTransform
 	{
 	vec3 Position;
 	quat Orientation;
@@ -13,13 +13,13 @@ typedef struct
 		vec3 XAxis, YAxis, ZAxis;
 		bool Dirty;
 		} CachedValues;
-	} BaseTransformStruct;
+	};
 
-void UpdateCachedValues ( BaseTransformStruct *Transform );
-void SetOrientationFromAxisAngle ( BaseTransformStruct *Transform, const vec3 NewAxis, const float NewAngle );
-void SetOrientationFromEulerAngles ( BaseTransformStruct *Transform, const vec3 Angles );
-void RotateAroundAxisAngle ( BaseTransformStruct *Transform, const vec3 NewAxis, const float NewAngle );
-void Rotate ( BaseTransformStruct *Transform, const quat Rotation );
-void GetTransformationMatrix ( BaseTransformStruct *Transform, mat4 *Output );
-void GetDirectionVectorsFromBaseTransformStruct ( BaseTransformStruct *Transform, vec3 *XAxis, vec3 *YAxis, vec3 *ZAxis );
+void UpdateCachedValues ( struct BaseTransform *Transform );
+void SetOrientationFromAxisAngle ( struct BaseTransform *Transform, const vec3 NewAxis, const float NewAngle );
+void SetOrientationFromEulerAngles ( struct BaseTransform *Transform, const vec3 Angles );
+void RotateAroundAxisAngle ( struct BaseTransform *Transform, const vec3 NewAxis, const float NewAngle );
+void Rotate ( struct BaseTransform *Transform, const quat Rotation );
+void GetTransformationMatrix ( struct BaseTransform *Transform, mat4 *Output );
+void GetDirectionVectorsFromBaseTransformStruct ( struct BaseTransform *Transform, vec3 *XAxis, vec3 *YAxis, vec3 *ZAxis );
 END_C_DECLARATIONS
