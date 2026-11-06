@@ -16,7 +16,6 @@ static struct
 	crFramebufferHandle MainWindowFramebuffer;
 	struct CameraData MainCamera;
 	bool ShouldQuit;
-	bool ForceRenderCommandUpdate;
 	ivec2 LastMousePosition;
 	bool HaveLastMousePosition;
 	} ModelViewerData = {0};
@@ -124,7 +123,6 @@ static void WindowResized_Callback ( const crWindowHandle Handle, const uvec2 Ne
 
 	SetCameraPerspectiveParameters ( &ModelViewerData.MainCamera, MATH_PI_2, ( float ) ClientAreaDimensions.x / ( float ) ClientAreaDimensions.y, 0.1f, 1000.0f );
 	UpdateCameraMatrices ( &ModelViewerData.MainCamera );
-	ModelViewerData.ForceRenderCommandUpdate = true;
 	}
 
 static bool InitializeRenderer ( void )
@@ -191,6 +189,7 @@ static ResourceHandle LoadModel ( const char *Filename, const bool AutoFit )
 	{
 	LOG_DEBUG ( "Loading model from '%s'", Filename );
 	ResourceHub_DestroyAll();
+	FreeRenderingData();
 
 	ResourceHandle Handle = LoadModelFileIntoResourceHub ( Filename, "Model" );
 	if ( Handle == ResourceHandle_Invalid )
@@ -202,13 +201,29 @@ static ResourceHandle LoadModel ( const char *Filename, const bool AutoFit )
 	if ( SetModelToRender ( Handle ) == false )
 		{
 		ResourceHub_DestroyAll();
+		FreeRenderingData();
 		return ResourceHandle_Invalid;
 		}
 
+	ResourceHandle AnimationHandle = ResourceHub_GetResourceByTypeAndIndex ( ResourceType_Animation, 0 );
+	if ( AnimationHandle != ResourceHandle_Invalid )
+		{
+		if ( SetAnimationToRender ( AnimationHandle ) == false )
+			LOG_ERROR ( "Animation is not compatible with this model" );
+		}
+
 	struct ModelRenderOptions Options = GetModelRenderOptions();
-	Options.Scale = 0.02f;
+	Options.Scale = 1.0f;
+	if ( AutoFit == true )
+		{
+		const struct ModelDescriptor *Descriptor = ResourceHub_GetModelDescriptor ( Handle );
+		if ( Descriptor != NULL )
+			AdjustToFit ( Descriptor->AABBox, &ModelViewerData.MainCamera, &Options.Scale );
+		}
 	SetModelRenderOptions ( Options );
 
+	if ( ModelViewerData.MainCamera.Transform.CachedValues.Dirty == true )
+		UpdateCameraMatrices ( &ModelViewerData.MainCamera );
 	UpdateRenderingForCamera ( &ModelViewerData.MainCamera );
 	return Handle;
 	}
@@ -254,19 +269,10 @@ int main ( int argc, char *argv[] )
 		TotalDelta += TimeDelta;
 
 		CameraInput_ProcessCameraMovement ( TimeDelta );
-
+		UpdateRenderingWithAnimationTime ( TotalDelta );
 		if ( ModelViewerData.MainCamera.Transform.CachedValues.Dirty )
-			{
 			UpdateCameraMatrices ( &ModelViewerData.MainCamera );
-			ModelViewerData.ForceRenderCommandUpdate = true;
-			}
-
-		// Updating rendering data, if needed
-		if ( ModelViewerData.ForceRenderCommandUpdate )
-			{
-			UpdateRenderingForCamera ( &ModelViewerData.MainCamera );
-			ModelViewerData.ForceRenderCommandUpdate = false;
-			}
+		UpdateRenderingForCamera ( &ModelViewerData.MainCamera );
 
 		// Actually rendering the frame
 		char TempString[256];

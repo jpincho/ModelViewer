@@ -242,6 +242,21 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 
 	for ( unsigned Index = 0; Index < ModelFileData->MeshCount; ++Index )
 		{
+		char UniqueName[256];
+		const char *OriginalName = ModelFileData->Meshes[Index].MeshName != NULL ? ModelFileData->Meshes[Index].MeshName : "";
+		snprintf ( UniqueName, sizeof ( UniqueName ), "%u:%s", Index, OriginalName );
+		char *UniqueCopy = strdup ( UniqueName );
+		if ( UniqueCopy == NULL )
+			{
+			LOG_ERROR ( "Unable to allocate a unique mesh name" );
+			return ResourceHandle_Invalid;
+			}
+		free ( ModelFileData->Meshes[Index].MeshName );
+		ModelFileData->Meshes[Index].MeshName = UniqueCopy;
+		}
+
+	for ( unsigned Index = 0; Index < ModelFileData->MeshCount; ++Index )
+		{
 		ResourceHandle NewResource = ResourceHub_CreateEntry ( ResourceType_Mesh, ModelFileData->Meshes[Index].MeshName );
 		ResourceHub_SetMeshDescriptor ( NewResource, &ModelFileData->Meshes[Index] );
 		}
@@ -275,10 +290,11 @@ void AdjustToFit ( const struct AABB BBox, struct CameraData *Camera, float *Sca
 	CenteredBBox.Max = math_subtract_vec3_from_vec3 ( BBox.Max, BBox.Min );
 	CenteredBBox.Max = math_multiply_vec3_by_scalar ( CenteredBBox.Max, 0.5f );
 
-	*Scale = CalculateScaleToFit2 ( CenteredBBox, Camera->Transform.Position.z, Camera->PerspectiveParameters.FOV, Camera->PerspectiveParameters.AspectRatio );
-	Camera->Transform.Position.x = 0.0f;
-	Camera->Transform.Position.y = CenteredBBox.Max.y * *Scale;
-	Camera->Transform.Position.x = 0.0f;
+	float Distance = fabsf ( Camera->Transform.Position.z );
+	if ( Distance < 0.01f )
+		Distance = 4.0f;
+	*Scale = CalculateScaleToFit2 ( CenteredBBox, Distance, Camera->PerspectiveParameters.FOV, Camera->PerspectiveParameters.AspectRatio );
+	SetCameraPosition ( Camera, ( vec3 ) { 0.0f, CenteredBBox.Max.y * *Scale, Distance } );
 	}
 
 unsigned RoundUpToNearestMultiple ( const unsigned Number, const unsigned Multiple )

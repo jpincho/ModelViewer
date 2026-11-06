@@ -17,11 +17,11 @@ bool BuildModelRenderData ( struct ModelRenderData *RenderData, const struct Mod
 		return false;
 
 	// Ok, now allocate all the render commands to account for these meshes
-	RenderData->CommandCount = TotalMeshCount;
-	RenderData->Commands = calloc ( TotalMeshCount, sizeof ( crRenderCommand ) );
+	RenderData->MeshRenderDataCount = TotalMeshCount;
+	RenderData->MeshRenderData = calloc ( TotalMeshCount, sizeof ( struct MeshRenderData ) );
 	RenderData->NodeIndices = calloc ( TotalMeshCount, sizeof ( unsigned ) );
 	RenderData->MeshIndices = calloc ( TotalMeshCount, sizeof ( unsigned ) );
-	if ( ( RenderData->Commands == NULL ) || ( RenderData->NodeIndices == NULL ) || ( RenderData->MeshIndices == NULL ) )
+	if ( ( RenderData->MeshRenderData == NULL ) || ( RenderData->NodeIndices == NULL ) || ( RenderData->MeshIndices == NULL ) )
 		{
 		DestroyModelRenderData ( RenderData );
 		return false;
@@ -46,10 +46,10 @@ bool BuildModelRenderData ( struct ModelRenderData *RenderData, const struct Mod
 		}
 
 	// These should match, at this point
-	assert ( RenderData->CommandCount == CurrentPosition );
+	assert ( RenderData->MeshRenderDataCount == CurrentPosition );
 
 	// Generate shaders for every mesh
-	for ( unsigned Index = 0; Index < RenderData->CommandCount; ++Index )
+	for ( unsigned Index = 0; Index < RenderData->MeshRenderDataCount; ++Index )
 		{
 		scShaderDefinition ShaderDefs = BuildShaderDefinitionForMeshData ( InputModelData->Meshes + RenderData->MeshIndices[Index] );
 		ShaderDefs.LightModel = scLightModel_Off;
@@ -61,15 +61,44 @@ bool BuildModelRenderData ( struct ModelRenderData *RenderData, const struct Mod
 			}
 
 		RenderData->NodeIndices[Index] = RenderData->NodeIndices[Index];
-		crSetRenderCommandShader ( RenderData->Commands + Index, Shader );
-		if ( BuildRenderCommandForMeshData ( RenderData->Commands + Index, InputModelData->Meshes + RenderData->MeshIndices[Index], Shader ) == false )
+		crSetRenderCommandShader ( &RenderData->MeshRenderData[Index].Command, Shader );
+		if ( BuildRenderCommandForMeshData ( &RenderData->MeshRenderData[Index].Command, InputModelData->Meshes + RenderData->MeshIndices[Index], Shader ) == false )
 			{
 			LOG_ERROR ( "Unable to build render command for mesh %u", RenderData->MeshIndices[Index] );
 			goto OnError;
 			}
+
+		// If this mesh has bones, create a shader buffer for them
+		if ( InputModelData->Meshes[RenderData->MeshIndices[Index]].BoneCount != 0 )
+			{
+			const unsigned BoneCount = ShaderDefs.BoneCount;//InputModelData->Meshes[RenderData->MeshIndices[Index]].BoneCount;
+
+			crShaderBufferDescriptor Descriptor = { 0 };
+			Descriptor.AccessType = crShaderBufferAccessType_Dynamic;
+			Descriptor.BufferType = crShaderBufferType_Uniform;
+			Descriptor.Data = NULL;
+			Descriptor.DataSize = sizeof ( mat4 ) * BoneCount;
+			Descriptor.Capacity = sizeof ( mat4 ) * BoneCount;
+			RenderData->MeshRenderData[Index].BoneShaderBuffer = crCreateShaderBuffer ( Descriptor );
+			if ( RenderData->MeshRenderData[Index].BoneShaderBuffer == crShaderBufferHandle_Invalid )
+				{
+				LOG_ERROR ( "Unable to create bone shader buffer for mesh %u", RenderData->MeshIndices[Index] );
+				goto OnError;
+				}
+			RenderData->MeshRenderData[Index].BoneCount = BoneCount;
+
+			mat4 *BoneMatrices = ( mat4* ) crMapShaderBuffer ( RenderData->MeshRenderData[Index].BoneShaderBuffer, crShaderBufferMapAccessType_WriteOnly );
+			if ( BoneMatrices == NULL )
+				goto OnError;
+			for ( unsigned Index = 0; Index < BoneCount; ++Index )
+				math_mat4_set_identity_matrix ( BoneMatrices + Index );
+			crUnmapShaderBuffer ( RenderData->MeshRenderData[Index].BoneShaderBuffer );
+			crSetRenderCommandUniformBlockValue ( &RenderData->MeshRenderData[Index].Command, crGetShaderUniformHandle ( Shader, "u_Bone" ), RenderData->MeshRenderData[Index].BoneShaderBuffer );
+			}
 		}
 
 	// Instance specific data here
+	/*
 	// Create a buffer for the bone matrices, if necessary
 	unsigned BoneCount = 0;
 	for ( unsigned Index = 0; Index < TotalMeshCount; ++Index )
@@ -88,7 +117,6 @@ bool BuildModelRenderData ( struct ModelRenderData *RenderData, const struct Mod
 		Descriptor.Capacity = sizeof ( mat4 ) * FinalBoneCount;
 		RenderData->BoneShaderBuffer = crCreateShaderBuffer ( Descriptor );
 		RenderData->BoneCount = BoneCount;
-		RenderData->OriginalModelData = InputModelData;
 
 		mat4 *BoneMatrices = ( mat4* ) crMapShaderBuffer ( RenderData->BoneShaderBuffer, crShaderBufferMapAccessType_WriteOnly );
 		if ( BoneMatrices == NULL )
@@ -98,12 +126,13 @@ bool BuildModelRenderData ( struct ModelRenderData *RenderData, const struct Mod
 		crUnmapShaderBuffer ( RenderData->BoneShaderBuffer );
 
 		// Assign the bone matrices buffer to all render commands
-		for ( unsigned Index = 0; Index < RenderData->CommandCount; ++Index )
+		for ( unsigned Index = 0; Index < RenderData->MeshRenderDataCount; ++Index )
 			{
-			crShaderHandle Shader = RenderData->Commands[Index].Shader;
-			crSetRenderCommandUniformBlockValue ( RenderData->Commands + Index, crGetShaderUniformHandle ( Shader, "u_Bone" ), RenderData->BoneShaderBuffer );
+			crShaderHandle Shader = RenderData->MeshRenderData[Index].Command.Shader;
+			crSetRenderCommandUniformBlockValue ( &RenderData->MeshRenderData[Index].Command, crGetShaderUniformHandle ( Shader, "u_Bone" ), RenderData->BoneShaderBuffer );
 			}
-		}
+		}*/
+	RenderData->OriginalModelData = InputModelData;
 	return true;
 
 OnError:
@@ -111,8 +140,11 @@ OnError:
 	return false;
 	}
 
-void UpdateModelRenderData ( const struct ModelRenderData *RenderData, struct BaseTransform *Transform, const float Scale, const mat4 ViewMatrix, const mat4 ProjectionMatrix )
+void UpdateModelRenderData ( const struct ModelRenderData *RenderData, struct BaseTransform *Transform, const float Scale, const mat4 ViewMatrix, const mat4 ProjectionMatrix, const mat4 *AnimatedNodeWorlds )
 	{
+	if ( ( RenderData->OriginalModelData == NULL ) || ( RenderData->MeshRenderDataCount == 0 ) )
+		return;
+
 	mat4 GlobalMatrix;
 	GetTransformationMatrix ( Transform, &GlobalMatrix );
 
@@ -124,13 +156,16 @@ void UpdateModelRenderData ( const struct ModelRenderData *RenderData, struct Ba
 	mat4 *NodeWorldMatrices = alloca ( RenderData->OriginalModelData->NodeCount * sizeof ( mat4 ) );
 	ComputeMeshTreeNodeWorldMatrices ( RenderData->OriginalModelData->NodeTree, RenderData->OriginalModelData->NodeCount, NodeWorldMatrices );
 
-	for ( unsigned Index = 0; Index < RenderData->CommandCount; ++Index )
+	for ( unsigned Index = 0; Index < RenderData->MeshRenderDataCount; ++Index )
 		{
 		const unsigned NodeIndex = RenderData->NodeIndices[Index];
+		mat4 NodeWorld = NodeWorldMatrices[NodeIndex];
+		if ( ( RenderData->MeshRenderData[Index].BoneCount == 0 ) && ( AnimatedNodeWorlds != NULL ) )
+			NodeWorld = AnimatedNodeWorlds[NodeIndex];
 		mat4 ModelMatrix;
-		math_mat4_multiply ( &ModelMatrix, ScaledGlobalMatrix, NodeWorldMatrices[NodeIndex] );
+		math_mat4_multiply ( &ModelMatrix, ScaledGlobalMatrix, NodeWorld );
 
-		crRenderCommand *Command = &RenderData->Commands[Index];
+		crRenderCommand *Command = &RenderData->MeshRenderData[Index].Command;
 		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ModelMatrix" ), ModelMatrix );
 		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ViewMatrix" ), ViewMatrix );
 		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ProjectionMatrix" ), ProjectionMatrix );
@@ -141,37 +176,23 @@ void UpdateModelRenderData ( const struct ModelRenderData *RenderData, struct Ba
 		mat3 NormalMatrix;
 		math_mat3_transpose ( &NormalMatrix, InvertedModelMatrix );
 		crSetRenderCommandUniformMatrix3Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_NormalMatrix" ), NormalMatrix );
-		/*
-				const crShaderUniformHandle BoneBlock = crGetShaderUniformHandle ( Command->Shader, scSkinningBoneBlockName );
-				if ( ( BoneBlock != crShaderUniformHandle_Invalid ) && ( Command->UniformValues != NULL ) && ( ( unsigned ) BoneBlock < Command->UniformValueCount ) )
-					{
-					const crShaderBufferHandle BoneBuffer = Command->UniformValues[BoneBlock].UniformValue.BlockValue;
-					if ( BoneBuffer != crShaderBufferHandle_Invalid )
-						{
-						mat4 BoneMatrices[scSkinningBoneCapacity];
-						for ( unsigned Index = 0; Index < RenderData->BoneCount ; ++Index )
-							math_mat4_set_identity_matrix ( &BoneMatrices[Index] );
-						crChangeShaderBufferContents ( BoneBuffer, 0, BoneMatrices, sizeof ( BoneMatrices ) );
-						}
-					}*/
 		}
 	}
 
 void DestroyModelRenderData ( struct ModelRenderData *RenderData )
 	{
-	if ( RenderData->Commands != NULL )
+	if ( RenderData->MeshRenderData != NULL )
 		{
-		for ( unsigned Index = 0; Index < RenderData->CommandCount; ++Index )
+		for ( unsigned Index = 0; Index < RenderData->MeshRenderDataCount; ++Index )
 			{
-			SAFE_DELETE_SHADER ( RenderData->Commands[Index].Shader );
-			crDestroyRenderCommand ( &RenderData->Commands[Index] );
+			SAFE_DELETE_SHADER_BUFFER ( RenderData->MeshRenderData[Index].BoneShaderBuffer );
+			SAFE_DELETE_SHADER ( RenderData->MeshRenderData[Index].Command.Shader );
+			crDestroyRenderCommand ( &RenderData->MeshRenderData[Index].Command );
 			}
 		}
-	SAFE_DEL_C ( RenderData->Commands );
+	SAFE_DEL_C ( RenderData->MeshRenderData );
 	SAFE_DEL_C ( RenderData->NodeIndices );
 	SAFE_DEL_C ( RenderData->MeshIndices );
-	SAFE_DELETE_SHADER_BUFFER ( RenderData->BoneShaderBuffer );
-	RenderData->BoneCount = 0;
-	RenderData->CommandCount = 0;
+	RenderData->MeshRenderDataCount = 0;
 	RenderData->OriginalModelData = NULL;
 	}

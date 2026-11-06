@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include <stdint.h>
 #include <malloc.h>
 
@@ -212,18 +213,12 @@ static bool ReadMetadataDouble ( const struct aiMetadata *Metadata, const char *
 	return false;
 	}
 
-static unsigned FindRootNodeIndex ( const struct MeshTreeNode *NodeTree, const unsigned NodeCount ) // Should always be zero, but...
+static void BuildAssimpCoordinateConversion ( const struct aiMetadata *Metadata, mat4 *Conversion )
 	{
-	for ( unsigned NodeIndex = 0; NodeIndex < NodeCount; ++NodeIndex )
-		{
-		if ( NodeTree[NodeIndex].ParentNode < 0 )
-			return NodeIndex;
-		}
-	return 0;
-	}
+	math_mat4_set_identity_matrix ( Conversion );
+	if ( Metadata == NULL )
+		return;
 
-static void ApplyAssimpMetadataToRootNode ( struct MeshTreeNode *RootNode, const struct aiMetadata *Metadata )
-	{
 	int32_t UpAxis = 1, UpAxisSign = 1, FrontAxis = 2, FrontAxisSign = 1, CoordAxis = 0, CoordAxisSign = 1;
 	double UnitScaleFactor = 1.0;
 	bool HasAxisMetadata = false;
@@ -246,7 +241,7 @@ static void ApplyAssimpMetadataToRootNode ( struct MeshTreeNode *RootNode, const
 	const vec3 EngineUp = axis_metadata_to_vec3 ( 1, 1 );
 	const vec3 EngineForward = axis_metadata_to_vec3 ( 2, 1 );
 
-	mat4 FileBasis, TargetBasis, FileBasisInverse, Conversion, UpdatedRoot;
+	mat4 FileBasis, TargetBasis, FileBasisInverse;
 	build_coordinate_basis_matrix ( &FileBasis, FileRight, FileUp, FileForward );
 	build_coordinate_basis_matrix ( &TargetBasis, EngineRight, EngineUp, EngineForward );
 	if ( math_mat4_inverse ( &FileBasisInverse, FileBasis ) == false )
@@ -254,14 +249,80 @@ static void ApplyAssimpMetadataToRootNode ( struct MeshTreeNode *RootNode, const
 		LOG_ERROR ( "Unable to invert coordinate basis matrix from Assimp metadata" );
 		return;
 		}
-	math_mat4_multiply ( &Conversion, TargetBasis, FileBasisInverse );
+	math_mat4_multiply ( Conversion, TargetBasis, FileBasisInverse );
 	if ( UnitScaleFactor != 1.0 )
-		math_mat4_scale_scalar ( &Conversion, Conversion, ( float ) UnitScaleFactor );
-
-	math_mat4_multiply ( &UpdatedRoot, Conversion, RootNode->DefaultTransformationMatrix );
-	RootNode->DefaultTransformationMatrix = UpdatedRoot;
+		math_mat4_scale_scalar ( Conversion, *Conversion, ( float ) UnitScaleFactor );
 
 	LOG_DEBUG ( "Applied Assimp metadata correction (UpAxis=%d, FrontAxis=%d, CoordAxis=%d, UnitScaleFactor=%f)", UpAxis, FrontAxis, CoordAxis, ( float ) UnitScaleFactor );
+	}
+
+static bool CoordinateConversionIsIdentity ( const mat4 Conversion )
+	{
+	for ( unsigned Index = 0; Index < 16; ++Index )
+		{
+		if ( fabsf ( Conversion.flat_raw[Index] - MATH_MAT4_IDENTITY.flat_raw[Index] ) > 1.0e-5f )
+			return false;
+		}
+	return true;
+	}
+
+// The conversion is a parent of the imported root, so later animation of that root cannot replace it.
+static bool PrependAssimpCoordinateConversionNode ( struct MeshTreeNode **NodeTree, unsigned *NodeCount, const mat4 Conversion )
+	{
+	if ( ( *NodeCount == 0 ) || ( CoordinateConversionIsIdentity ( Conversion ) == true ) )
+		return true;
+
+	struct MeshTreeNode *Grown = realloc ( *NodeTree, ( *NodeCount + 1 ) * sizeof ( struct MeshTreeNode ) );
+	if ( Grown == NULL )
+		return false;
+	memmove ( Grown + 1, Grown, ( *NodeCount ) * sizeof ( struct MeshTreeNode ) );
+	memset ( Grown, 0, sizeof ( struct MeshTreeNode ) );
+
+	unsigned RootCount = 0;
+	for ( unsigned Index = 1; Index <= *NodeCount; ++Index )
+		{
+		if ( Grown[Index].ParentNode >= 0 )
+			Grown[Index].ParentNode += 1;
+		else
+			++RootCount;
+		for ( unsigned ChildIndex = 0; ChildIndex < Grown[Index].ChildNodeCount; ++ChildIndex )
+			Grown[Index].ChildNodes[ChildIndex] += 1;
+		}
+
+	Grown[0].NodeName = strdup ( "CoordinateConversion" );
+	Grown[0].ParentNode = -1;
+	Grown[0].DefaultTransformationMatrix = Conversion;
+	Grown[0].ChildNodeCount = RootCount;
+	Grown[0].ChildNodes = ( RootCount != 0 ) ? calloc ( RootCount, sizeof ( int ) ) : NULL;
+	if ( ( Grown[0].NodeName == NULL ) || ( ( RootCount != 0 ) && ( Grown[0].ChildNodes == NULL ) ) )
+		{
+		free ( Grown[0].NodeName );
+		free ( Grown[0].ChildNodes );
+		for ( unsigned Index = 1; Index <= *NodeCount; ++Index )
+			{
+			if ( Grown[Index].ParentNode > 0 )
+				Grown[Index].ParentNode -= 1;
+			for ( unsigned ChildIndex = 0; ChildIndex < Grown[Index].ChildNodeCount; ++ChildIndex )
+				Grown[Index].ChildNodes[ChildIndex] -= 1;
+			}
+		memmove ( Grown, Grown + 1, ( *NodeCount ) * sizeof ( struct MeshTreeNode ) );
+		*NodeTree = Grown;
+		return false;
+		}
+
+	unsigned RootWrite = 0;
+	for ( unsigned Index = 1; Index <= *NodeCount; ++Index )
+		{
+		if ( Grown[Index].ParentNode < 0 )
+			{
+			Grown[0].ChildNodes[RootWrite++] = ( int ) Index;
+			Grown[Index].ParentNode = 0;
+			}
+		}
+
+	*NodeTree = Grown;
+	*NodeCount += 1;
+	return true;
 	}
 
 static void CountAssimpNodes ( const struct aiNode *CurrentAssimpNode, unsigned *Count )
@@ -490,13 +551,20 @@ static bool LoadAssimpMesh ( const struct aiMesh *AssimpMesh, struct MeshDescrip
 				}
 			}
 
+		unsigned OverInfluenceCount = 0;
+		unsigned OverWeightCount = 0;
+		unsigned UnderWeightCount = 0;
 		for ( unsigned vertex_index = 0; vertex_index < AssimpMesh->mNumVertices; ++vertex_index )
 			{
 			if ( BoneWeightCountPerVertex[vertex_index] > MAX_WEIGHTS_PER_VERTEX )
-				LOG_ERROR ( "Max weight count per vertex exceeded at vertex %u (%u)", vertex_index, BoneWeightCountPerVertex[vertex_index] );
-			if ( BoneWeightPerVertex[vertex_index] > 1.0f )
-				LOG_ERROR ( "Max weight per vertex exceeded at vertex %u (%f)", vertex_index, BoneWeightPerVertex[vertex_index] );
+				++OverInfluenceCount;
+			if ( BoneWeightPerVertex[vertex_index] > 1.01f )
+				++OverWeightCount;
+			if ( BoneWeightPerVertex[vertex_index] < 0.99f )
+				++UnderWeightCount;
 			}
+		if ( ( OverInfluenceCount != 0 ) || ( OverWeightCount != 0 ) || ( UnderWeightCount != 0 ) )
+			LOG_WARNING ( "Mesh '%s' bone weights: %u vertices over %u influences, %u over 1.01, %u under 0.99", AssimpMesh->mName.data, OverInfluenceCount, MAX_WEIGHTS_PER_VERTEX, OverWeightCount, UnderWeightCount );
 		SAFE_DEL_C ( BoneWeightCountPerVertex );
 		SAFE_DEL_C ( BoneWeightPerVertex );
 
@@ -627,11 +695,12 @@ bool LoadFileWithAssimp ( const char *Filename, struct DataFileContentDescriptor
 	FileData->NodeTree = calloc ( FileData->NodeCount, sizeof ( struct MeshTreeNode ) );
 	unsigned StartIndex = 0;
 	LoadAssimpNode ( FileData->NodeTree, &StartIndex, -1, AssimpScene->mRootNode );
-
-	if ( AssimpScene->mMetaData != NULL )
+	mat4 CoordinateConversion;
+	BuildAssimpCoordinateConversion ( AssimpScene->mMetaData, &CoordinateConversion );
+	if ( PrependAssimpCoordinateConversionNode ( &FileData->NodeTree, &FileData->NodeCount, CoordinateConversion ) == false )
 		{
-		const unsigned RootNodeIndex = FindRootNodeIndex ( FileData->NodeTree, FileData->NodeCount );
-		ApplyAssimpMetadataToRootNode ( &FileData->NodeTree[RootNodeIndex], AssimpScene->mMetaData );
+		LOG_ERROR ( "Unable to apply Assimp coordinate conversion" );
+		goto on_error;
 		}
 
 	LogMeshTreeNode ( FileData->NodeTree, 0, 0 );
