@@ -222,6 +222,7 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 			for ( unsigned TextureIndex = 0; TextureIndex < TextureFileData->TextureCount; ++TextureIndex )
 				{
 				ResourceHandle NewResource = ResourceHub_CreateEntry ( ResourceType_Texture, ModelFileData->Materials[MaterialIndex].Textures[Type].TextureName );
+				assert ( NewResource != ResourceHandle_Invalid );
 				ResourceHub_SetTextureDescriptor ( NewResource, &TextureFileData->Textures[TextureIndex] );
 				}
 			}
@@ -231,18 +232,21 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 	for ( unsigned Index = 0; Index < ModelFileData->TextureCount; ++Index )
 		{
 		ResourceHandle NewResource = ResourceHub_CreateEntry ( ResourceType_Texture, ModelFileData->Textures[Index].TextureName );
+		assert ( NewResource != ResourceHandle_Invalid );
 		ResourceHub_SetTextureDescriptor ( NewResource, &ModelFileData->Textures[Index] );
 		}
 
 	for ( unsigned Index = 0; Index < ModelFileData->MaterialCount; ++Index )
 		{
 		ResourceHandle NewResource = ResourceHub_CreateEntry ( ResourceType_Material, ModelFileData->Materials[Index].MaterialName );
+		assert ( NewResource != ResourceHandle_Invalid );
 		ResourceHub_SetMaterialDescriptor ( NewResource, &ModelFileData->Materials[Index] );
 		}
 
 	for ( unsigned Index = 0; Index < ModelFileData->MeshCount; ++Index )
 		{
 		ResourceHandle NewResource = ResourceHub_CreateEntry ( ResourceType_Mesh, ModelFileData->Meshes[Index].MeshName );
+		assert ( NewResource != ResourceHandle_Invalid );
 		ResourceHub_SetMeshDescriptor ( NewResource, &ModelFileData->Meshes[Index] );
 		}
 
@@ -254,6 +258,7 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 	NewModelDescriptor.Nodes = ModelFileData->NodeTree;
 	CalculateModelDescriptorAABB ( &NewModelDescriptor );
 	ResourceHandle NewResource = ResourceHub_CreateEntry ( ResourceType_Model, ResourceName );
+	assert ( NewResource != ResourceHandle_Invalid );
 	ResourceHub_SetModelDescriptor ( NewResource, &NewModelDescriptor );
 	ThreadedFileLoader_UnloadResourceFile ( FileIndex );
 	return NewResource;
