@@ -10,7 +10,6 @@
 #include <assimp/cimport.h>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
-#include <assimp/metadata.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -151,117 +150,6 @@ static void Translate_aiQuaternion ( const struct aiQuaternion input, vec4 *outp
 	output->y = input.y;
 	output->z = input.z;
 	output->w = input.w;
-	}
-
-static vec3 axis_metadata_to_vec3 ( int32_t Axis, const int32_t Sign )
-	{
-	const float Scale = Sign < 0 ? -1.0f : 1.0f;
-	vec3 Output = { 0.0f, 0.0f, 0.0f };
-	if ( ( Axis < 0 ) || ( Axis > 2 ) ) // If it's an invalid axis, default to Y
-		Axis = 1;
-	Output.raw[Axis] = Scale;
-	return Output;
-	}
-
-static void build_coordinate_basis_matrix ( mat4 *Output, const vec3 Right, const vec3 Up, const vec3 Forward )
-	{
-	math_mat4_set_identity_matrix ( Output );
-	Output->vectors[0].x = Right.x;
-	Output->vectors[0].y = Right.y;
-	Output->vectors[0].z = Right.z;
-	Output->vectors[1].x = Up.x;
-	Output->vectors[1].y = Up.y;
-	Output->vectors[1].z = Up.z;
-	Output->vectors[2].x = Forward.x;
-	Output->vectors[2].y = Forward.y;
-	Output->vectors[2].z = Forward.z;
-	}
-
-static bool ReadMetadataInt32 ( const struct aiMetadata *Metadata, const char *Key, int32_t *OutValue )
-	{
-	for ( unsigned MetadataIndex = 0; MetadataIndex < Metadata->mNumProperties; ++MetadataIndex )
-		{
-		if ( strcmp ( Metadata->mKeys[MetadataIndex].data, Key ) != 0 )
-			continue;
-		if ( Metadata->mValues[MetadataIndex].mType != AI_INT32 )
-			return false;
-		*OutValue = * ( int32_t * ) Metadata->mValues[MetadataIndex].mData;
-		return true;
-		}
-	return false;
-	}
-
-static bool ReadMetadataDouble ( const struct aiMetadata *Metadata, const char *Key, double *OutValue )
-	{
-	for ( unsigned MetadataIndex = 0; MetadataIndex < Metadata->mNumProperties; ++MetadataIndex )
-		{
-		if ( strcmp ( Metadata->mKeys[MetadataIndex].data, Key ) != 0 )
-			continue;
-		if ( Metadata->mValues[MetadataIndex].mType == AI_DOUBLE )
-			{
-			*OutValue = * ( double * ) Metadata->mValues[MetadataIndex].mData;
-			return true;
-			}
-		if ( Metadata->mValues[MetadataIndex].mType == AI_FLOAT )
-			{
-			*OutValue = ( double ) * ( float * ) Metadata->mValues[MetadataIndex].mData;
-			return true;
-			}
-		return false;
-		}
-	return false;
-	}
-
-static unsigned FindRootNodeIndex ( const struct MeshTreeNode *NodeTree, const unsigned NodeCount ) // Should always be zero, but...
-	{
-	for ( unsigned NodeIndex = 0; NodeIndex < NodeCount; ++NodeIndex )
-		{
-		if ( NodeTree[NodeIndex].ParentNode < 0 )
-			return NodeIndex;
-		}
-	return 0;
-	}
-
-static void ApplyAssimpMetadataToRootNode ( struct MeshTreeNode *RootNode, const struct aiMetadata *Metadata )
-	{
-	int32_t UpAxis = 1, UpAxisSign = 1, FrontAxis = 2, FrontAxisSign = 1, CoordAxis = 0, CoordAxisSign = 1;
-	double UnitScaleFactor = 1.0;
-	bool HasAxisMetadata = false;
-
-	HasAxisMetadata |= ReadMetadataInt32 ( Metadata, "UpAxis", &UpAxis );
-	HasAxisMetadata |= ReadMetadataInt32 ( Metadata, "UpAxisSign", &UpAxisSign );
-	HasAxisMetadata |= ReadMetadataInt32 ( Metadata, "FrontAxis", &FrontAxis );
-	HasAxisMetadata |= ReadMetadataInt32 ( Metadata, "FrontAxisSign", &FrontAxisSign );
-	HasAxisMetadata |= ReadMetadataInt32 ( Metadata, "CoordAxis", &CoordAxis );
-	HasAxisMetadata |= ReadMetadataInt32 ( Metadata, "CoordAxisSign", &CoordAxisSign );
-	const bool HasUnitScaleMetadata = ReadMetadataDouble ( Metadata, "UnitScaleFactor", &UnitScaleFactor );
-
-	if ( ( HasAxisMetadata == false ) && ( HasUnitScaleMetadata == false ) )
-		return;
-
-	const vec3 FileRight = axis_metadata_to_vec3 ( CoordAxis, CoordAxisSign );
-	const vec3 FileUp = axis_metadata_to_vec3 ( UpAxis, UpAxisSign );
-	const vec3 FileForward = axis_metadata_to_vec3 ( FrontAxis, FrontAxisSign );
-	const vec3 EngineRight = axis_metadata_to_vec3 ( 0, 1 );
-	const vec3 EngineUp = axis_metadata_to_vec3 ( 1, 1 );
-	const vec3 EngineForward = axis_metadata_to_vec3 ( 2, 1 );
-
-	mat4 FileBasis, TargetBasis, FileBasisInverse, Conversion, UpdatedRoot;
-	build_coordinate_basis_matrix ( &FileBasis, FileRight, FileUp, FileForward );
-	build_coordinate_basis_matrix ( &TargetBasis, EngineRight, EngineUp, EngineForward );
-	if ( math_mat4_inverse ( &FileBasisInverse, FileBasis ) == false )
-		{
-		LOG_ERROR ( "Unable to invert coordinate basis matrix from Assimp metadata" );
-		return;
-		}
-	math_mat4_multiply ( &Conversion, TargetBasis, FileBasisInverse );
-	if ( UnitScaleFactor != 1.0 )
-		math_mat4_scale_scalar ( &Conversion, Conversion, ( float ) UnitScaleFactor );
-
-	math_mat4_multiply ( &UpdatedRoot, Conversion, RootNode->DefaultTransformationMatrix );
-	RootNode->DefaultTransformationMatrix = UpdatedRoot;
-
-	LOG_DEBUG ( "Applied Assimp metadata correction (UpAxis=%d, FrontAxis=%d, CoordAxis=%d, UnitScaleFactor=%f)", UpAxis, FrontAxis, CoordAxis, ( float ) UnitScaleFactor );
 	}
 
 static void CountAssimpNodes ( const struct aiNode *CurrentAssimpNode, unsigned *Count )
@@ -417,6 +305,11 @@ static bool LoadAssimpMesh ( const struct aiMesh *AssimpMesh, struct MeshDescrip
 
 	//NewMeshDescriptor.Primitive = Translate((aiPrimitiveType)AssimpMesh->mPrimitiveTypes);
 
+	if ( AssimpMesh->mPrimitiveTypes != aiPrimitiveType_TRIANGLE )
+		{
+		LOG_WARNING ( "Mesh '%s' has non-triangle primitives, ignoring", AssimpMesh->mName.data );
+		return false;
+		}
 	Descriptor->Primitive = crTriangleList;
 	Descriptor->MeshName = strdup ( AssimpMesh->mName.data );
 	Descriptor->Positions = calloc ( AssimpMesh->mNumVertices, sizeof ( vec3 ) );
@@ -604,7 +497,7 @@ bool LoadFileWithAssimp ( const char *Filename, struct DataFileContentDescriptor
 	unsigned AssimpImportFlags = aiProcess_RemoveRedundantMaterials;
 	AssimpImportFlags |= aiProcess_Triangulate;
 	AssimpImportFlags |= aiProcess_LimitBoneWeights;// Limit to AI_CONFIG_PP_LBW_MAX_WEIGHTS weights per bone
-	//AssimpImportFlags |= aiProcess_SortByPType;
+	AssimpImportFlags |= aiProcess_SortByPType;
 	AssimpImportFlags |= aiProcess_GenNormals;
 	AssimpImportFlags |= aiProcess_CalcTangentSpace;
 	AssimpImportFlags |= aiProcess_ImproveCacheLocality;
@@ -628,12 +521,8 @@ bool LoadFileWithAssimp ( const char *Filename, struct DataFileContentDescriptor
 	unsigned StartIndex = 0;
 	LoadAssimpNode ( FileData->NodeTree, &StartIndex, -1, AssimpScene->mRootNode );
 
-	if ( AssimpScene->mMetaData != NULL )
-		{
-		const unsigned RootNodeIndex = FindRootNodeIndex ( FileData->NodeTree, FileData->NodeCount );
-		ApplyAssimpMetadataToRootNode ( &FileData->NodeTree[RootNodeIndex], AssimpScene->mMetaData );
-		}
-
+	// Assimp 5.4.3 already bakes FBX and Collada axis and unit metadata into the root transform.
+	// Scene metadata still describes the source file, so applying it again doubles the correction.
 	LogMeshTreeNode ( FileData->NodeTree, 0, 0 );
 
 	if ( AssimpScene->mNumTextures != 0 )
