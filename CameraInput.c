@@ -5,7 +5,7 @@
 
 struct
 	{
-	CameraData *MyCamera;
+	struct CameraData *MyCamera;
 	float CameraRotationSpeed, CameraMovementSpeed;
 	struct
 		{
@@ -68,7 +68,7 @@ static void CameraInput_OnEvent ( const edWindowEvent Event )
 		}
 	}
 
-void CameraInput_Initialize ( CameraData *NewCameraData )
+void CameraInput_Initialize ( struct CameraData *NewCameraData )
 	{
 	memset ( &CameraInputData, 0, sizeof ( CameraInputData ) );
 	CameraInputData.MouseSensitivity = 1.0f;
@@ -107,7 +107,7 @@ void CameraInput_ProcessCameraMovement ( const float TimeDelta )
 	if ( CameraInputData.Keys.RotatePositiveY )
 		++CameraKeyRotation.y;
 
-	BaseTransformStruct CameraTransform = CameraInputData.MyCamera->Transform;
+	struct BaseTransform CameraTransform = CameraInputData.MyCamera->Transform;
 	CameraInputData.Dirty = false;
 	if ( math_vec3_is_zero ( CameraMovementDirection ) == false )
 		{

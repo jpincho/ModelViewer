@@ -19,16 +19,16 @@ typedef struct
 	unsigned PositionCount, ScaleCount, RotationCount;
 	} NodeTrack;
 
-typedef struct
+struct AnimationDescriptor
 	{
 	NodeTrack *NodeTracks;
 	unsigned NodeTrackCount;
 	double Duration;
 	char *AnimationName;
-	} AnimationDescriptor;
+	};
 
 BEGIN_C_DECLARATIONS
-void LogAnimationDescriptor ( const AnimationDescriptor *Descriptor, const int Indentation );
-void CopyAnimationDescriptor ( AnimationDescriptor *Output, const AnimationDescriptor *Input );
-void DestroyAnimationDescriptor ( AnimationDescriptor *Descriptor );
+void LogAnimationDescriptor ( const struct AnimationDescriptor *Descriptor, const int Indentation );
+void CopyAnimationDescriptor ( struct AnimationDescriptor *Output, const struct AnimationDescriptor *Input );
+void DestroyAnimationDescriptor ( struct AnimationDescriptor *Descriptor );
 END_C_DECLARATIONS

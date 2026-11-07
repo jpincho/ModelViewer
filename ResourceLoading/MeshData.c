@@ -1,7 +1,7 @@
 #include "MeshData.h"
 #include <C_CrossRenderer/CrossRenderer.h>
 
-bool BuildMeshDataFromDescriptor ( const MeshDescriptor Descriptor, MeshData *Data )
+bool BuildMeshDataFromDescriptor ( const struct MeshDescriptor Descriptor, struct MeshData *Data )
 	{
 	Data->BoneCount = Descriptor.BoneCount;
 	Data->Primitive = crTriangleList;
@@ -258,7 +258,7 @@ bool BuildMeshDataFromDescriptor ( const MeshDescriptor Descriptor, MeshData *Da
 	return true;
 	}
 
-void DestroyMeshData ( MeshData *Data )
+void DestroyMeshData ( struct MeshData *Data )
 	{
 	SAFE_DELETE_SHADER_BUFFER ( Data->Bitangent );
 	SAFE_DELETE_SHADER_BUFFER ( Data->BoneIndex );

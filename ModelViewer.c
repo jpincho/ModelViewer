@@ -3,31 +3,28 @@
 #include <Platform/Logger.h>
 #include <C_CrossRenderer/CrossRenderer.h>
 #include <CrossUI/CrossUI.h>
-#include "EventDispatcher.h"
-#include "ModelViewer.h"
+
+#include "ResourceLoading/ResourceHub.h"
 #include "Camera.h"
+#include "EventDispatcher.h"
 #include "CameraInput.h"
 #include "Utils.h"
-#include "ResourceLoading/ResourceHub.h"
-#include "ResourceLoading/AABB.h"
-#if defined (PLATFORM_COMPILER_GNU)
-#include <alloca.h>
-#endif
+#include "ModelRendering.h"
 
-static crFramebufferHandle MainWindowFramebuffer = NULL;
-static CameraData MainCamera = { 0 };
-static bool ShouldQuit = false;
-static char *ModelFilename = NULL;
-static float ModelScale = 1.0f;
-static bool ForceRenderCommandUpdate = false;
-static ivec2 LastMousePosition;
-static bool HaveLastMousePosition = false;
-static ModelRenderData ModelCommands = { 0 };
+static struct
+	{
+	crFramebufferHandle MainWindowFramebuffer;
+	struct CameraData MainCamera;
+	bool ShouldQuit;
+	bool ForceRenderCommandUpdate;
+	ivec2 LastMousePosition;
+	bool HaveLastMousePosition;
+	} ModelViewerData = {0};
 
 #define TEST_FILENAME MODEL_PATH "/GLTF/Character1/untitled.gltf"
 
-static ResourceHandle LoadModel ( const char *Filename, const char *ResourceName, ModelRenderData *RenderData );
-static void ResetCamera ( CameraData *Camera );
+static ResourceHandle LoadModel ( const char *Filename, const bool AutoFit );
+static void ResetCamera ( struct CameraData *Camera );
 
 static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyCode KeyCode, const bool State )
 	{
@@ -39,7 +36,7 @@ static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyC
 		{
 		case crKeyCode_Escape:
 			{
-			ShouldQuit = true;
+			ModelViewerData.ShouldQuit = true;
 			break;
 			}
 		case crKeyCode_LeftControl:
@@ -69,30 +66,19 @@ static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyC
 					LOG_ERROR ( "Error selecting file" );
 					break;
 					}
-				
-				ResourceHub_DestroyAll();
-				DestroyModelRenderData ( &ModelCommands );
 
-				ResourceHandle NewModelHandle = LoadModel ( SelectedFilename, "Model", &ModelCommands );
-				free ( SelectedFilename );
-				if ( NewModelHandle == ResourceHandle_Invalid )
+				if ( LoadModel ( SelectedFilename, true ) == ResourceHandle_Invalid )
 					{
-					LOG_ERROR ( "Unable to load model file" );
+					LOG_ERROR ( "Unable to load model" );
 					break;
 					}
-				ModelDescriptor *Descriptor = ResourceHub_GetModelDescriptor ( NewModelHandle );
-				assert ( Descriptor != NULL );
-
-				ResetCamera ( &MainCamera );
-				AdjustToFit ( Descriptor->AABBox, &MainCamera, &ModelScale );
-				ForceRenderCommandUpdate = true;
 				}
 			OPressed = State;
 			break;
 			}
 		case crKeyCode_R:
 			{
-			ResetCamera ( &MainCamera );
+			ResetCamera ( &ModelViewerData.MainCamera );
 			break;
 			}
 		}
@@ -100,28 +86,28 @@ static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyC
 
 static void WindowClosed_Callback ( const crWindowHandle Handle )
 	{
-	ShouldQuit = true;
+	ModelViewerData.ShouldQuit = true;
 	}
 
 static void MouseMoved_Callback ( const crWindowHandle Handle, const ivec2 NewPosition )
 	{
 	ivec2 Delta = { 0, 0 };
-	if ( HaveLastMousePosition )
+	if ( ModelViewerData.HaveLastMousePosition )
 		{
-		Delta.x = NewPosition.x - LastMousePosition.x;
-		Delta.y = NewPosition.y - LastMousePosition.y;
+		Delta.x = NewPosition.x - ModelViewerData.LastMousePosition.x;
+		Delta.y = NewPosition.y - ModelViewerData.LastMousePosition.y;
 		}
-	LastMousePosition = NewPosition;
-	HaveLastMousePosition = true;
+	ModelViewerData.LastMousePosition = NewPosition;
+	ModelViewerData.HaveLastMousePosition = true;
 	edSendMouseMovedEvent ( Handle, NewPosition, Delta );
 	}
 
 static void WindowResized_Callback ( const crWindowHandle Handle, const uvec2 NewSize )
 	{
-	if ( MainWindowFramebuffer != NULL )
+	if ( ModelViewerData.MainWindowFramebuffer != NULL )
 		{
-		crDeleteFramebuffer ( MainWindowFramebuffer );
-		MainWindowFramebuffer = NULL;
+		crDeleteFramebuffer ( ModelViewerData.MainWindowFramebuffer );
+		ModelViewerData.MainWindowFramebuffer = NULL;
 		}
 	uvec2 ClientAreaDimensions;
 	crGetWindowClientAreaDimensions ( Handle, &ClientAreaDimensions );
@@ -134,11 +120,11 @@ static void WindowResized_Callback ( const crWindowHandle Handle, const uvec2 Ne
 	FramebufferDescriptor.ClearDepth = 1.0f;
 	math_vec4_set ( &FramebufferDescriptor.ClearColor, 0.5f, 0.5f, 0.5f, 1.0f );
 
-	MainWindowFramebuffer = crCreateFramebuffer ( FramebufferDescriptor );
+	ModelViewerData.MainWindowFramebuffer = crCreateFramebuffer ( FramebufferDescriptor );
 
-	SetCameraPerspectiveParameters ( &MainCamera, MATH_PI_2, ( float ) ClientAreaDimensions.x / ( float ) ClientAreaDimensions.y, 0.1f, 1000.0f );
-	UpdateCameraMatrices ( &MainCamera );
-	ForceRenderCommandUpdate = true;
+	SetCameraPerspectiveParameters ( &ModelViewerData.MainCamera, MATH_PI_2, ( float ) ClientAreaDimensions.x / ( float ) ClientAreaDimensions.y, 0.1f, 1000.0f );
+	UpdateCameraMatrices ( &ModelViewerData.MainCamera );
+	ModelViewerData.ForceRenderCommandUpdate = true;
 	}
 
 static bool InitializeRenderer ( void )
@@ -177,13 +163,13 @@ static bool InitializeRenderer ( void )
 	FramebufferDescriptor.ClearDepth = 1.0f;
 	math_vec4_set ( &FramebufferDescriptor.ClearColor, 0.5f, 0.5f, 0.5f, 1.0f );
 
-	MainWindowFramebuffer = crCreateFramebuffer ( FramebufferDescriptor );
-	if ( !MainWindowFramebuffer )
+	ModelViewerData.MainWindowFramebuffer = crCreateFramebuffer ( FramebufferDescriptor );
+	if ( !ModelViewerData.MainWindowFramebuffer )
 		return false;
 	return true;
 	}
 
-static bool InitializeCamera ( CameraData *Camera )
+static bool InitializeCamera ( struct CameraData *Camera )
 	{
 	uvec2 WindowSize;
 	CameraInput_Initialize ( Camera );
@@ -201,53 +187,43 @@ static bool InitializeCamera ( CameraData *Camera )
 	return true;
 	}
 
-static ResourceHandle LoadModel ( const char *Filename, const char *ResourceName, ModelRenderData *RenderData )
+static ResourceHandle LoadModel ( const char *Filename, const bool AutoFit )
 	{
 	LOG_DEBUG ( "Loading model from '%s'", Filename );
+	ResourceHub_DestroyAll();
 
-	ResourceHandle Handle = LoadModelFileIntoResourceHub ( Filename, ResourceName );
+	ResourceHandle Handle = LoadModelFileIntoResourceHub ( Filename, "Model" );
 	if ( Handle == ResourceHandle_Invalid )
 		{
 		LOG_ERROR ( "Unable to load model" );
 		return ResourceHandle_Invalid;
 		}
-
-	ModelDescriptor *Descriptor = ResourceHub_GetModelDescriptor ( Handle );
-	if ( Descriptor == NULL )
+	LOG_DEBUG ( "Model loaded" );
+	if ( SetModelToRender ( Handle ) == false )
 		{
-		LOG_ERROR ( "Unable to retrieve model descriptor" );
+		ResourceHub_DestroyAll();
 		return ResourceHandle_Invalid;
 		}
-	AABB_InitEmpty ( &Descriptor->AABBox );
 
-	// Calculate the bounding boxes for all the nodes in this model, using the tree and the matrices
-	if ( Descriptor->NodeCount != 0 )
+	if ( AutoFit )
 		{
-		mat4 *NodeWorldMatrices = alloca ( Descriptor->NodeCount * sizeof ( mat4 ) );
-		ComputeMeshTreeNodeWorldMatrices ( Descriptor->Nodes, Descriptor->NodeCount, NodeWorldMatrices );
-		for ( unsigned NodeIndex = 0; NodeIndex < Descriptor->NodeCount; ++NodeIndex )
+		float Scale = 1.0f;
+		const struct ModelDescriptor *ModelDescriptor;
+		ModelDescriptor = ResourceHub_GetModelDescriptor ( Handle );
+		if ( ModelDescriptor != NULL )
 			{
-			for ( unsigned MeshIndex = 0; MeshIndex < Descriptor->Nodes[NodeIndex].MeshIndexCount; ++MeshIndex )
-				{
-				const unsigned MeshArrayIndex = Descriptor->Nodes[NodeIndex].MeshIndices[MeshIndex];
-				if ( MeshArrayIndex >= Descriptor->MeshCount )
-					continue;
-				AABB TransformedBox;
-				AABB_Transform ( &TransformedBox, &Descriptor->Meshes[MeshArrayIndex].BoundingBox, &NodeWorldMatrices[NodeIndex] );
-				AABB_Join ( &Descriptor->AABBox, &Descriptor->AABBox, &TransformedBox );
-				}
+			AdjustToFit ( ModelDescriptor->AABBox, &ModelViewerData.MainCamera, &Scale );
+			struct ModelRenderOptions Options = GetModelRenderOptions();
+			Options.Scale = Scale;
+			SetModelRenderOptions ( Options );
 			}
 		}
-	LOG_DEBUG ( "Model loaded" );
-	ModelData *LoadedModelData = ResourceHub_GetModelData ( Handle );
 
-	if ( BuildModelRenderData ( RenderData, LoadedModelData ) == false )
-		return ResourceHandle_Invalid;
-
+	UpdateRenderingForCamera ( &ModelViewerData.MainCamera );
 	return Handle;
 	}
 
-static void ResetCamera ( CameraData *Camera )
+static void ResetCamera ( struct CameraData *Camera )
 	{
 	uvec2 WindowSize;
 	crGetWindowClientAreaDimensions ( crGetMainWindowHandle(), &WindowSize );
@@ -256,50 +232,28 @@ static void ResetCamera ( CameraData *Camera )
 	SetCameraOrientation ( Camera, MATH_QUAT_IDENTITY );
 	SetCameraPosition ( Camera, ( vec3 )
 		{
-		0.0f, 0.0f, 4.0f
+		0.0f, 2.5f, 5.0f
 		} );
 	}
 
-#include <unistd.h>
-
 int main ( int argc, char *argv[] )
 	{
-	BaseTransformStruct ModelBaseTransform = { 0 };
-	ResourceHandle LoadedModelHandle = ResourceHandle_Invalid;
-
 	if ( InitializeRenderer() == false )
 		return -1;
 
-	if ( InitializeCamera ( &MainCamera ) == false )
+	if ( InitializeCamera ( &ModelViewerData.MainCamera ) == false )
 		return -1;
-	ResetCamera ( &MainCamera );
+	ResetCamera ( &ModelViewerData.MainCamera );
 
 	if ( cuiInitializeWithArgs ( argc, argv ) == false )
 		return -1;
 
-	char cwd[500];
-	if ( getcwd ( cwd, sizeof ( cwd ) ) != NULL )
-		{
-		printf ( "Current working dir: %s\n", cwd );
-		}
-	math_vec3_set ( &ModelBaseTransform.Position, 0.0f, 0.0f, 0.0f );
-	ModelBaseTransform.Orientation = MATH_QUAT_IDENTITY;
-	UpdateCachedValues ( &ModelBaseTransform );
-	LoadedModelHandle = LoadModel ( TEST_FILENAME, "Model", &ModelCommands );
-	if ( LoadedModelHandle == ResourceHandle_Invalid )
+	if ( LoadModel ( TEST_FILENAME, true ) == ResourceHandle_Invalid )
 		return -1;
-
-	ModelDescriptor *Descriptor = ResourceHub_GetModelDescriptor ( LoadedModelHandle );
-	if ( Descriptor == NULL )
-		return -1;
-
-	AdjustToFit ( Descriptor->AABBox, &MainCamera, &ModelScale );
-	UpdateModelRenderData ( &ModelCommands, &ModelBaseTransform, ModelScale, MainCamera.CachedValues.ViewMatrix, MainCamera.CachedValues.ProjectionMatrix );
 
 	double LastEndFrameSeconds = Platform_GetPerformanceCurrentTime();
 	double TotalDelta = 0.0;
-	bool ModelTransformDirty = true, CameraTransformDirty = true;
-	while ( ShouldQuit == false )
+	while ( ModelViewerData.ShouldQuit == false )
 		{
 		// World tick
 		double Seconds = Platform_GetPerformanceCurrentTime();
@@ -311,36 +265,33 @@ int main ( int argc, char *argv[] )
 
 		CameraInput_ProcessCameraMovement ( TimeDelta );
 
-		ModelTransformDirty = ModelBaseTransform.CachedValues.Dirty;
-		CameraTransformDirty = MainCamera.Transform.CachedValues.Dirty;
+		if ( ModelViewerData.MainCamera.Transform.CachedValues.Dirty )
+			{
+			UpdateCameraMatrices ( &ModelViewerData.MainCamera );
+			ModelViewerData.ForceRenderCommandUpdate = true;
+			}
 
 		// Updating rendering data, if needed
-		if ( CameraTransformDirty )
-			UpdateCameraMatrices ( &MainCamera );
-		if ( ModelTransformDirty )
-			UpdateCachedValues ( &ModelBaseTransform );
-		if ( ( ModelTransformDirty || CameraTransformDirty || ForceRenderCommandUpdate ) && ( ModelCommands.Commands != NULL ) )
+		if ( ModelViewerData.ForceRenderCommandUpdate )
 			{
-			UpdateModelRenderData ( &ModelCommands, &ModelBaseTransform, ModelScale, MainCamera.CachedValues.ViewMatrix, MainCamera.CachedValues.ProjectionMatrix );
-			ForceRenderCommandUpdate = false;
-			ModelTransformDirty = CameraTransformDirty = false;
+			UpdateRenderingForCamera ( &ModelViewerData.MainCamera );
+			ModelViewerData.ForceRenderCommandUpdate = false;
 			}
 
 		// Actually rendering the frame
 		char TempString[256];
-		snprintf ( TempString, 256, "%f %f %f", MainCamera.Transform.Position.x, MainCamera.Transform.Position.y, MainCamera.Transform.Position.z );
+		snprintf ( TempString, 256, "%f %f %f", ModelViewerData.MainCamera.Transform.Position.x, ModelViewerData.MainCamera.Transform.Position.y, ModelViewerData.MainCamera.Transform.Position.z );
 		crSetWindowTitle ( crGetMainWindowHandle(), TempString );
 
 		crStartRenderToWindow ( crGetMainWindowHandle() );
-		crClearFramebufferWithDefaultValues ( MainWindowFramebuffer );
-		for ( unsigned Index = 0; Index < ModelCommands.Count; ++Index )
-			crRunCommand ( ModelCommands.Commands[Index] );
+		crClearFramebufferWithDefaultValues ( ModelViewerData.MainWindowFramebuffer );
+		RenderModel();
 
-		crDisplayFramebuffer ( MainWindowFramebuffer, crGetMainWindowHandle() );
+		crDisplayFramebuffer ( ModelViewerData.MainWindowFramebuffer, crGetMainWindowHandle() );
 		crDisplayWindow ( crGetMainWindowHandle() );
 		crUpdateWindows();
 		}
 
-	DestroyModelRenderData ( &ModelCommands );
+	FreeRenderingData();
 	return 0;
 	}

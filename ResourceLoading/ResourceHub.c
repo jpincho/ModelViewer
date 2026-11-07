@@ -16,18 +16,18 @@ typedef struct ResourceEntry
 			} TextureResource;
 		struct
 			{
-			MaterialData Data;
-			MaterialDescriptor Descriptor;
+			struct MaterialData Data;
+			struct MaterialDescriptor Descriptor;
 			} MaterialResource;
 		struct
 			{
-			MeshData Data;
-			MeshDescriptor Descriptor;
+			struct MeshData Data;
+			struct MeshDescriptor Descriptor;
 			} MeshResource;
 		struct
 			{
-			ModelData Data;
-			ModelDescriptor Descriptor;
+			struct ModelData Data;
+			struct ModelDescriptor Descriptor;
 			} ModelResource;
 		struct
 			{
@@ -171,7 +171,7 @@ crTextureHandle ResourceHub_GetTextureHandle ( const ResourceHandle EntryHandle 
 	return EntryData->TextureResource.TextureHandle;
 	}
 
-bool ResourceHub_SetMaterialDescriptor ( const ResourceHandle EntryHandle, const MaterialDescriptor *Descriptor )
+bool ResourceHub_SetMaterialDescriptor ( const ResourceHandle EntryHandle, const struct MaterialDescriptor *Descriptor )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
 	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Material ) )
@@ -182,7 +182,7 @@ bool ResourceHub_SetMaterialDescriptor ( const ResourceHandle EntryHandle, const
 	return true;
 	}
 
-MaterialDescriptor *ResourceHub_GetMaterialDescriptor ( const ResourceHandle EntryHandle )
+struct MaterialDescriptor *ResourceHub_GetMaterialDescriptor ( const ResourceHandle EntryHandle )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
 	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Material ) )
@@ -190,7 +190,7 @@ MaterialDescriptor *ResourceHub_GetMaterialDescriptor ( const ResourceHandle Ent
 	return &EntryData->MaterialResource.Descriptor;
 	}
 
-MaterialData *ResourceHub_GetMaterialData ( const ResourceHandle EntryHandle )
+struct MaterialData *ResourceHub_GetMaterialData ( const ResourceHandle EntryHandle )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
 	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Material ) )
@@ -200,7 +200,7 @@ MaterialData *ResourceHub_GetMaterialData ( const ResourceHandle EntryHandle )
 	return &EntryData->MaterialResource.Data;
 	}
 
-bool ResourceHub_SetMeshDescriptor ( const ResourceHandle EntryHandle, const MeshDescriptor *Descriptor )
+bool ResourceHub_SetMeshDescriptor ( const ResourceHandle EntryHandle, const struct MeshDescriptor *Descriptor )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
 	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Mesh ) )
@@ -211,7 +211,7 @@ bool ResourceHub_SetMeshDescriptor ( const ResourceHandle EntryHandle, const Mes
 	return true;
 	}
 
-MeshDescriptor *ResourceHub_GetMeshDescriptor ( const ResourceHandle EntryHandle )
+struct MeshDescriptor *ResourceHub_GetMeshDescriptor ( const ResourceHandle EntryHandle )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
 	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Mesh ) )
@@ -219,7 +219,7 @@ MeshDescriptor *ResourceHub_GetMeshDescriptor ( const ResourceHandle EntryHandle
 	return &EntryData->MeshResource.Descriptor;
 	}
 
-MeshData *ResourceHub_GetMeshData ( const ResourceHandle EntryHandle )
+struct MeshData *ResourceHub_GetMeshData ( const ResourceHandle EntryHandle )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
 	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Mesh ) )
@@ -229,7 +229,7 @@ MeshData *ResourceHub_GetMeshData ( const ResourceHandle EntryHandle )
 	return &EntryData->MeshResource.Data;
 	}
 
-bool ResourceHub_SetModelDescriptor ( const ResourceHandle EntryHandle, const ModelDescriptor *Descriptor )
+bool ResourceHub_SetModelDescriptor ( const ResourceHandle EntryHandle, const struct ModelDescriptor *Descriptor )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
 	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Model ) )
@@ -240,7 +240,7 @@ bool ResourceHub_SetModelDescriptor ( const ResourceHandle EntryHandle, const Mo
 	return true;
 	}
 
-ModelDescriptor *ResourceHub_GetModelDescriptor ( const ResourceHandle EntryHandle )
+struct ModelDescriptor *ResourceHub_GetModelDescriptor ( const ResourceHandle EntryHandle )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
 	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Model ) )
@@ -248,7 +248,7 @@ ModelDescriptor *ResourceHub_GetModelDescriptor ( const ResourceHandle EntryHand
 	return &EntryData->ModelResource.Descriptor;
 	}
 
-ModelData *ResourceHub_GetModelData ( const ResourceHandle EntryHandle )
+struct ModelData *ResourceHub_GetModelData ( const ResourceHandle EntryHandle )
 	{
 	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
 	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Model ) )
@@ -416,7 +416,7 @@ bool ResourceHub_BuildResource ( const ResourceHandle EntryHandle )
 					}
 				}
 
-			EntryData->ModelResource.Data.Meshes = calloc ( EntryData->ModelResource.Descriptor.MeshCount, sizeof ( MeshData ) );
+			EntryData->ModelResource.Data.Meshes = calloc ( EntryData->ModelResource.Descriptor.MeshCount, sizeof ( struct MeshData ) );
 			for ( unsigned Index = 0; Index < EntryData->ModelResource.Descriptor.MeshCount; ++Index )
 				{
 				ResourceHandle ResourceHandle = ResourceHub_FindResource ( ResourceType_Mesh, EntryData->ModelResource.Descriptor.Meshes[Index].MeshName );
@@ -424,7 +424,7 @@ bool ResourceHub_BuildResource ( const ResourceHandle EntryHandle )
 				}
 			EntryData->ModelResource.Data.MeshCount = EntryData->ModelResource.Descriptor.MeshCount;
 
-			EntryData->ModelResource.Data.NodeTree = calloc ( EntryData->ModelResource.Descriptor.NodeCount, sizeof ( MeshTreeNode ) );
+			EntryData->ModelResource.Data.NodeTree = calloc ( EntryData->ModelResource.Descriptor.NodeCount, sizeof ( struct MeshTreeNode ) );
 			for ( unsigned Index = 0; Index < EntryData->ModelResource.Descriptor.NodeCount; ++Index )
 				{
 				CopyMeshTreeNode ( &EntryData->ModelResource.Data.NodeTree[Index], &EntryData->ModelResource.Descriptor.Nodes[Index] );

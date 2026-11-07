@@ -1,6 +1,6 @@
 #include "BaseTransform.h"
 
-void UpdateCachedValues ( BaseTransformStruct *Transform )
+void UpdateCachedValues ( struct BaseTransform *Transform )
 	{
 	math_vec3_rotate_by_quat ( &Transform->CachedValues.ZAxis, MAKE_VEC3 ( 0.0f, 0.0f, 1.0f ), Transform->Orientation );
 	math_vec3_rotate_by_quat ( &Transform->CachedValues.YAxis, MAKE_VEC3 ( 0.0f, 1.0f, 0.0f ), Transform->Orientation );
@@ -15,21 +15,21 @@ void UpdateCachedValues ( BaseTransformStruct *Transform )
 	Transform->CachedValues.Dirty = false;
 	}
 
-void SetOrientationFromAxisAngle ( BaseTransformStruct *Transform, const vec3 NewAxis, const float NewAngle )
+void SetOrientationFromAxisAngle ( struct BaseTransform *Transform, const vec3 NewAxis, const float NewAngle )
 	{
 	math_quat_from_axis_angle ( &Transform->Orientation, NewAxis, NewAngle );
 	math_quat_normalize ( &Transform->Orientation );
 	Transform->CachedValues.Dirty = true;
 	}
 
-void SetOrientationFromEulerAngles ( BaseTransformStruct *Transform, const vec3 Angles )
+void SetOrientationFromEulerAngles ( struct BaseTransform *Transform, const vec3 Angles )
 	{
 	math_quat_from_euler ( &Transform->Orientation, Angles );
 	math_quat_normalize ( &Transform->Orientation );
 	Transform->CachedValues.Dirty = true;
 	}
 
-void RotateAroundAxisAngle ( BaseTransformStruct *Transform, const vec3 NewAxis, const float NewAngle )
+void RotateAroundAxisAngle ( struct BaseTransform *Transform, const vec3 NewAxis, const float NewAngle )
 	{
 	quat Rotation;
 	math_quat_from_axis_angle ( &Rotation, NewAxis, NewAngle );
@@ -38,21 +38,21 @@ void RotateAroundAxisAngle ( BaseTransformStruct *Transform, const vec3 NewAxis,
 	Transform->CachedValues.Dirty = true;
 	}
 
-void Rotate ( BaseTransformStruct *Transform, const quat Rotation )
+void Rotate ( struct BaseTransform *Transform, const quat Rotation )
 	{
 	math_quat_multiply_by_quat ( &Transform->Orientation, Transform->Orientation, Rotation );
 	math_quat_normalize ( &Transform->Orientation );
 	Transform->CachedValues.Dirty = true;
 	}
 
-void GetTransformationMatrix ( BaseTransformStruct *Transform, mat4 *Output )
+void GetTransformationMatrix ( struct BaseTransform *Transform, mat4 *Output )
 	{
 	if ( Transform->CachedValues.Dirty == true )
 		UpdateCachedValues ( Transform );
 	math_mat4_copy ( Output, Transform->CachedValues.TransformMatrix );
 	}
 
-void GetDirectionVectorsFromBaseTransformStruct ( BaseTransformStruct *Transform, vec3 *XAxis, vec3 *YAxis, vec3 *ZAxis )
+void GetDirectionVectorsFromBaseTransformStruct ( struct BaseTransform *Transform, vec3 *XAxis, vec3 *YAxis, vec3 *ZAxis )
 	{
 	if ( Transform->CachedValues.Dirty == true )
 		UpdateCachedValues ( Transform );

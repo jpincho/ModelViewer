@@ -3,13 +3,15 @@
 #include "LightDescriptor.h"
 #include "MeshData.h"
 
-typedef struct
+struct ModelData
 	{
-	MeshTreeNode *NodeTree;
+	struct MeshTreeNode *NodeTree;
 	unsigned NodeCount;
 
-	MeshData *Meshes;
+	struct MeshData *Meshes;
 	unsigned MeshCount;
-	} ModelData;
 
-void DestroyModelData ( ModelData *Data );
+	struct AABB AABBox;
+	};
+
+void DestroyModelData ( struct ModelData *Data );

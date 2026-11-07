@@ -39,7 +39,7 @@ static void DestroyNodeTrack ( NodeTrack *Track )
 	SAFE_DEL_C ( Track->Scales );
 	}
 
-void LogAnimationDescriptor ( const AnimationDescriptor *Descriptor, const int Indentation )
+void LogAnimationDescriptor ( const struct AnimationDescriptor *Descriptor, const int Indentation )
 	{
 	LOG_DEBUG ( "%*sAnimation '%s'", Indentation, "", Descriptor->AnimationName );
 	LOG_DEBUG ( "%*sDuration %.02f", Indentation + 1, "", Descriptor->Duration );
@@ -50,7 +50,7 @@ void LogAnimationDescriptor ( const AnimationDescriptor *Descriptor, const int I
 		}
 	}
 
-void CopyAnimationDescriptor ( AnimationDescriptor *Output, const AnimationDescriptor *Input )
+void CopyAnimationDescriptor ( struct AnimationDescriptor *Output, const struct AnimationDescriptor *Input )
 	{
 	Output->AnimationName = Input->AnimationName ? strdup ( Input->AnimationName ) : NULL;
 	Output->Duration = Input->Duration;
@@ -64,7 +64,7 @@ void CopyAnimationDescriptor ( AnimationDescriptor *Output, const AnimationDescr
 		CopyNodeTrack ( &Output->NodeTracks[Index], &Input->NodeTracks[Index] );
 	}
 
-void DestroyAnimationDescriptor ( AnimationDescriptor *Descriptor )
+void DestroyAnimationDescriptor ( struct AnimationDescriptor *Descriptor )
 	{
 	for ( unsigned TrackIndex = 0; TrackIndex < Descriptor->NodeTrackCount; ++TrackIndex )
 		{
