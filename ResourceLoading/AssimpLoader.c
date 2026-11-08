@@ -456,36 +456,36 @@ static bool LoadAssimpAnimation ( const struct aiAnimation *AssimpAnimation, str
 	Descriptor->NodeTracks = calloc ( AssimpAnimation->mNumChannels, sizeof ( NodeTrack ) );
 	Descriptor->NodeTrackCount = AssimpAnimation->mNumChannels;
 	assert ( Descriptor->NodeTracks );
-	for ( unsigned channel_index = 0; channel_index < AssimpAnimation->mNumChannels; ++channel_index )
+	for ( unsigned ChannelIndex = 0; ChannelIndex < AssimpAnimation->mNumChannels; ++ChannelIndex )
 		{
-		NodeTrack *CurrentTrack = Descriptor->NodeTracks + channel_index;
-		CurrentTrack->NodeName = strdup ( AssimpAnimation->mChannels[channel_index]->mNodeName.data );
+		NodeTrack *CurrentTrack = Descriptor->NodeTracks + ChannelIndex;
+		CurrentTrack->NodeName = strdup ( AssimpAnimation->mChannels[ChannelIndex]->mNodeName.data );
 
-		CurrentTrack->Positions = calloc ( AssimpAnimation->mChannels[channel_index]->mNumPositionKeys, sizeof ( NodeTrackKey ) );
+		CurrentTrack->Positions = calloc ( AssimpAnimation->mChannels[ChannelIndex]->mNumPositionKeys, sizeof ( NodeTrackKey ) );
 		assert ( CurrentTrack->Positions );
-		CurrentTrack->PositionCount = AssimpAnimation->mChannels[channel_index]->mNumPositionKeys;
-		for ( unsigned KeyIndex = 0; KeyIndex < AssimpAnimation->mChannels[channel_index]->mNumPositionKeys; ++KeyIndex )
+		CurrentTrack->PositionCount = AssimpAnimation->mChannels[ChannelIndex]->mNumPositionKeys;
+		for ( unsigned KeyIndex = 0; KeyIndex < AssimpAnimation->mChannels[ChannelIndex]->mNumPositionKeys; ++KeyIndex )
 			{
-			CurrentTrack->Positions[KeyIndex].Time = AssimpAnimation->mChannels[channel_index]->mPositionKeys[KeyIndex].mTime / TicksPerSecond;
-			Translate_aiVector3D ( AssimpAnimation->mChannels[channel_index]->mPositionKeys[KeyIndex].mValue, &CurrentTrack->Positions[KeyIndex].Vec3Value );
+			CurrentTrack->Positions[KeyIndex].Time = AssimpAnimation->mChannels[ChannelIndex]->mPositionKeys[KeyIndex].mTime / TicksPerSecond;
+			Translate_aiVector3D ( AssimpAnimation->mChannels[ChannelIndex]->mPositionKeys[KeyIndex].mValue, &CurrentTrack->Positions[KeyIndex].Vec3Value );
 			}
 
-		CurrentTrack->Rotations = calloc ( AssimpAnimation->mChannels[channel_index]->mNumRotationKeys, sizeof ( NodeTrackKey ) );
+		CurrentTrack->Rotations = calloc ( AssimpAnimation->mChannels[ChannelIndex]->mNumRotationKeys, sizeof ( NodeTrackKey ) );
 		assert ( CurrentTrack->Rotations );
-		CurrentTrack->RotationCount = AssimpAnimation->mChannels[channel_index]->mNumRotationKeys;
-		for ( unsigned KeyIndex = 0; KeyIndex < AssimpAnimation->mChannels[channel_index]->mNumRotationKeys; ++KeyIndex )
+		CurrentTrack->RotationCount = AssimpAnimation->mChannels[ChannelIndex]->mNumRotationKeys;
+		for ( unsigned KeyIndex = 0; KeyIndex < AssimpAnimation->mChannels[ChannelIndex]->mNumRotationKeys; ++KeyIndex )
 			{
-			CurrentTrack->Rotations[KeyIndex].Time = AssimpAnimation->mChannels[channel_index]->mRotationKeys[KeyIndex].mTime / TicksPerSecond;
-			Translate_aiQuaternion ( AssimpAnimation->mChannels[channel_index]->mRotationKeys[KeyIndex].mValue, &CurrentTrack->Rotations[KeyIndex].QuatValue );
+			CurrentTrack->Rotations[KeyIndex].Time = AssimpAnimation->mChannels[ChannelIndex]->mRotationKeys[KeyIndex].mTime / TicksPerSecond;
+			Translate_aiQuaternion ( AssimpAnimation->mChannels[ChannelIndex]->mRotationKeys[KeyIndex].mValue, &CurrentTrack->Rotations[KeyIndex].QuatValue );
 			}
 
-		CurrentTrack->Scales = calloc ( AssimpAnimation->mChannels[channel_index]->mNumScalingKeys, sizeof ( NodeTrackKey ) );
+		CurrentTrack->Scales = calloc ( AssimpAnimation->mChannels[ChannelIndex]->mNumScalingKeys, sizeof ( NodeTrackKey ) );
 		assert ( CurrentTrack->Scales );
-		CurrentTrack->ScaleCount = AssimpAnimation->mChannels[channel_index]->mNumScalingKeys;
-		for ( unsigned KeyIndex = 0; KeyIndex < AssimpAnimation->mChannels[channel_index]->mNumScalingKeys; ++KeyIndex )
+		CurrentTrack->ScaleCount = AssimpAnimation->mChannels[ChannelIndex]->mNumScalingKeys;
+		for ( unsigned KeyIndex = 0; KeyIndex < AssimpAnimation->mChannels[ChannelIndex]->mNumScalingKeys; ++KeyIndex )
 			{
-			CurrentTrack->Scales[KeyIndex].Time = AssimpAnimation->mChannels[channel_index]->mScalingKeys[KeyIndex].mTime / TicksPerSecond;
-			Translate_aiVector3D ( AssimpAnimation->mChannels[channel_index]->mScalingKeys[KeyIndex].mValue, &CurrentTrack->Scales[KeyIndex].Vec3Value );
+			CurrentTrack->Scales[KeyIndex].Time = AssimpAnimation->mChannels[ChannelIndex]->mScalingKeys[KeyIndex].mTime / TicksPerSecond;
+			Translate_aiVector3D ( AssimpAnimation->mChannels[ChannelIndex]->mScalingKeys[KeyIndex].mValue, &CurrentTrack->Scales[KeyIndex].Vec3Value );
 			}
 		}
 	LOG_DEBUG ( "Loaded animation '%s'", Descriptor->AnimationName );

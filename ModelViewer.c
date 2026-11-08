@@ -29,7 +29,7 @@ static void ResetCamera ( struct CameraData *Camera );
 static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyCode KeyCode, const bool State )
 	{
 	static bool LeftCtrlPressed = false, RightCtrlPressed = false;
-	static bool OPressed = false;
+	static bool OPressed = false, F1Pressed = false;
 
 	edSendKeyStateChangedEvent ( Handle, KeyCode, State );
 	switch ( KeyCode )
@@ -37,6 +37,17 @@ static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyC
 		case crKeyCode_Escape:
 			{
 			ModelViewerData.ShouldQuit = true;
+			break;
+			}
+		case crKeyCode_F1:
+			{
+			if ( ( State == true ) && ( F1Pressed == false ) )
+				{
+				struct ModelRenderOptions Options = GetModelRenderOptions();
+				Options.Wireframe = !Options.Wireframe;
+				SetModelRenderOptions ( Options );
+				}
+			F1Pressed = State;
 			break;
 			}
 		case crKeyCode_LeftControl:
