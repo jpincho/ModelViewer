@@ -8,6 +8,7 @@
 struct ModelRenderOptions
 	{
 	float Scale;
+	bool Wireframe;
 	};
 
 bool SetModelToRender ( const ResourceHandle NewModelHandle );

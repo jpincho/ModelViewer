@@ -28,6 +28,14 @@ bool SetModelToRender ( const ResourceHandle NewModelHandle )
 void SetModelRenderOptions ( const struct ModelRenderOptions NewOptions )
 	{
 	RenderingData.Options = NewOptions;
+	for ( unsigned Index = 0; Index < RenderingData.ModelRenderData.MeshRenderDataCount; ++Index )
+		{
+		crRenderCommand *Command = &RenderingData.ModelRenderData.MeshRenderData[Index].Command;
+		if ( NewOptions.Wireframe )
+			Command->State.PolygonMode.State = crPolygonMode_Line;
+		else
+			Command->State.PolygonMode.State = crPolygonMode_Fill;
+		}
 	}
 
 struct ModelRenderOptions GetModelRenderOptions ( void )
