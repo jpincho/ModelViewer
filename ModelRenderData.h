@@ -19,8 +19,6 @@ struct ModelRenderData
 	const struct ModelData *OriginalModelData;
 	unsigned *NodeIndices;
 	unsigned *MeshIndices;
-	crShaderBufferHandle BoneShaderBuffer;
-	unsigned BoneCount;
 	};
 
 bool BuildModelRenderData ( struct ModelRenderData *RenderData, const struct ModelData *InputModelData );

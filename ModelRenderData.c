@@ -51,6 +51,7 @@ bool BuildModelRenderData ( struct ModelRenderData *RenderData, const struct Mod
 	// Generate shaders for every mesh
 	for ( unsigned Index = 0; Index < RenderData->MeshRenderDataCount; ++Index )
 		{
+		RenderData->MeshRenderData[Index].OriginalMeshData = InputModelData->Meshes + RenderData->MeshIndices[Index];
 		scShaderDefinition ShaderDefs = BuildShaderDefinitionForMeshData ( InputModelData->Meshes + RenderData->MeshIndices[Index] );
 		ShaderDefs.LightModel = scLightModel_Off;
 		crShaderHandle Shader = scAssembleShader ( ShaderDefs );
@@ -67,43 +68,37 @@ bool BuildModelRenderData ( struct ModelRenderData *RenderData, const struct Mod
 			LOG_ERROR ( "Unable to build render command for mesh %u", RenderData->MeshIndices[Index] );
 			goto OnError;
 			}
-		}
 
-	// Instance specific data here
-	// Create a buffer for the bone matrices, if necessary
-	unsigned BoneCount = 0;
-	for ( unsigned Index = 0; Index < TotalMeshCount; ++Index )
-		{
-		BoneCount += ( InputModelData->Meshes + RenderData->MeshIndices[Index] )->BoneCount;
-		}
-	if ( BoneCount != 0 )
-		{
-		unsigned FinalBoneCount = RoundUpToNearestMultiple ( BoneCount, 64 );
-
-		crShaderBufferDescriptor Descriptor = { 0 };
-		Descriptor.AccessType = crShaderBufferAccessType_Dynamic;
-		Descriptor.BufferType = crShaderBufferType_Uniform;
-		Descriptor.Data = NULL;
-		Descriptor.DataSize = sizeof ( mat4 ) * FinalBoneCount;
-		Descriptor.Capacity = sizeof ( mat4 ) * FinalBoneCount;
-		RenderData->BoneShaderBuffer = crCreateShaderBuffer ( Descriptor );
-		RenderData->BoneCount = BoneCount;
-		RenderData->OriginalModelData = InputModelData;
-
-		mat4 *BoneMatrices = ( mat4* ) crMapShaderBuffer ( RenderData->BoneShaderBuffer, crShaderBufferMapAccessType_WriteOnly );
-		if ( BoneMatrices == NULL )
-			goto OnError;
-		for ( unsigned Index = 0; Index < FinalBoneCount; ++Index )
-			math_mat4_set_identity_matrix ( BoneMatrices + Index );
-		crUnmapShaderBuffer ( RenderData->BoneShaderBuffer );
-
-		// Assign the bone matrices buffer to all render commands
-		for ( unsigned Index = 0; Index < RenderData->MeshRenderDataCount; ++Index )
+		// If this mesh has bones, create a shader buffer for them
+		if ( InputModelData->Meshes[RenderData->MeshIndices[Index]].BoneCount != 0 )
 			{
-			crShaderHandle Shader = RenderData->MeshRenderData[Index].Command.Shader;
-			crSetRenderCommandUniformBlockValue ( &RenderData->MeshRenderData[Index].Command, crGetShaderUniformHandle ( Shader, "u_Bone" ), RenderData->BoneShaderBuffer );
+			const unsigned BoneCount = ShaderDefs.BoneCount;
+
+			crShaderBufferDescriptor Descriptor = { 0 };
+			Descriptor.AccessType = crShaderBufferAccessType_Dynamic;
+			Descriptor.BufferType = crShaderBufferType_Uniform;
+			Descriptor.Data = NULL;
+			Descriptor.DataSize = sizeof ( mat4 ) * BoneCount;
+			Descriptor.Capacity = sizeof ( mat4 ) * BoneCount;
+			RenderData->MeshRenderData[Index].BoneShaderBuffer = crCreateShaderBuffer ( Descriptor );
+			if ( RenderData->MeshRenderData[Index].BoneShaderBuffer == crShaderBufferHandle_Invalid )
+				{
+				LOG_ERROR ( "Unable to create bone shader buffer for mesh %u", RenderData->MeshIndices[Index] );
+				goto OnError;
+				}
+			RenderData->MeshRenderData[Index].BoneCount = BoneCount;
+
+			mat4 *BoneMatrices = ( mat4* ) crMapShaderBuffer ( RenderData->MeshRenderData[Index].BoneShaderBuffer, crShaderBufferMapAccessType_WriteOnly );
+			if ( BoneMatrices == NULL )
+				goto OnError;
+			for ( unsigned Index = 0; Index < BoneCount; ++Index )
+				math_mat4_set_identity_matrix ( BoneMatrices + Index );
+			crUnmapShaderBuffer ( RenderData->MeshRenderData[Index].BoneShaderBuffer );
+			crSetRenderCommandUniformBlockValue ( &RenderData->MeshRenderData[Index].Command, crGetShaderUniformHandle ( Shader, "u_Bone" ), RenderData->MeshRenderData[Index].BoneShaderBuffer );
 			}
 		}
+
+	RenderData->OriginalModelData = InputModelData;
 	return true;
 
 OnError:
@@ -153,6 +148,7 @@ void DestroyModelRenderData ( struct ModelRenderData *RenderData )
 		{
 		for ( unsigned Index = 0; Index < RenderData->MeshRenderDataCount; ++Index )
 			{
+			SAFE_DELETE_SHADER_BUFFER ( RenderData->MeshRenderData[Index].BoneShaderBuffer );
 			SAFE_DELETE_SHADER ( RenderData->MeshRenderData[Index].Command.Shader );
 			crDestroyRenderCommand ( &RenderData->MeshRenderData[Index].Command );
 			}

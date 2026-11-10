@@ -9,7 +9,10 @@ struct MeshData
 	crShaderBufferDataStream PositionStream, ShininessStream, EmissiveStream, ColorStream, NormalStream, TexCoordStream, IndexStream, TangentStream, BitangentStream, BoneIndexStream, BoneWeightStream;
 	crPrimitiveType Primitive;
 	struct MaterialData Material;
-	uint32_t VertexCount, BoneCount;
+	uint32_t VertexCount;
+
+	struct MeshBone *Bones;
+	unsigned BoneCount;
 	};
 
 bool BuildMeshDataFromDescriptor ( const struct MeshDescriptor Descriptor, struct MeshData *Data );

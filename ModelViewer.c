@@ -19,9 +19,11 @@ static struct
 	bool ForceRenderCommandUpdate;
 	ivec2 LastMousePosition;
 	bool HaveLastMousePosition;
+	ResourceHandle CurrentAnimationHandle;
 	} ModelViewerData = {0};
 
-#define TEST_FILENAME MODEL_PATH "/GLTF/Character1/untitled.gltf"
+//#define TEST_FILENAME MODEL_PATH "/GLTF/Character1/untitled.gltf"
+#define TEST_FILENAME MODEL_PATH "/GLTF/buster_drone/busterDrone.gltf"
 
 static ResourceHandle LoadModel ( const char *Filename, const bool AutoFit );
 static void ResetCamera ( struct CameraData *Camera );
@@ -129,7 +131,7 @@ static void WindowResized_Callback ( const crWindowHandle Handle, const uvec2 Ne
 	FramebufferDescriptor.DepthFormat = crPixelFormat_DepthComponent;
 	FramebufferDescriptor.Dimensions = ClientAreaDimensions;
 	FramebufferDescriptor.ClearDepth = 1.0f;
-	math_vec4_set ( &FramebufferDescriptor.ClearColor, 0.5f, 0.5f, 0.5f, 1.0f );
+	math_vec4_set ( &FramebufferDescriptor.ClearColor, 0.0f, 0.0f, 0.0f, 1.0f );
 
 	ModelViewerData.MainWindowFramebuffer = crCreateFramebuffer ( FramebufferDescriptor );
 
@@ -172,7 +174,7 @@ static bool InitializeRenderer ( void )
 	FramebufferDescriptor.DepthFormat = crPixelFormat_DepthComponent;
 	FramebufferDescriptor.Dimensions = ClientAreaDimensions;
 	FramebufferDescriptor.ClearDepth = 1.0f;
-	math_vec4_set ( &FramebufferDescriptor.ClearColor, 0.5f, 0.5f, 0.5f, 1.0f );
+	math_vec4_set ( &FramebufferDescriptor.ClearColor, 0.0f, 0.0f, 0.0f, 1.0f );
 
 	ModelViewerData.MainWindowFramebuffer = crCreateFramebuffer ( FramebufferDescriptor );
 	if ( !ModelViewerData.MainWindowFramebuffer )
@@ -216,6 +218,16 @@ static ResourceHandle LoadModel ( const char *Filename, const bool AutoFit )
 		ResourceHub_DestroyAll();
 		FreeRenderingData();
 		return ResourceHandle_Invalid;
+		}
+
+	ModelViewerData.CurrentAnimationHandle = ResourceHub_GetResourceByTypeAndIndex ( ResourceType_Animation, 0 );
+	if ( ModelViewerData.CurrentAnimationHandle != ResourceHandle_Invalid )
+		{
+		if ( SetAnimationToRender ( ModelViewerData.CurrentAnimationHandle ) == false )
+			{
+			LOG_ERROR ( "Animation is not compatible with this model" );
+			ModelViewerData.CurrentAnimationHandle = ResourceHandle_Invalid;
+			}
 		}
 
 	if ( AutoFit )
@@ -283,6 +295,9 @@ int main ( int argc, char *argv[] )
 			UpdateCameraMatrices ( &ModelViewerData.MainCamera );
 			ModelViewerData.ForceRenderCommandUpdate = true;
 			}
+
+		if ( ModelViewerData.CurrentAnimationHandle != ResourceHandle_Invalid )
+			UpdateRenderingWithAnimationTime ( TotalDelta );
 
 		// Updating rendering data, if needed
 		if ( ModelViewerData.ForceRenderCommandUpdate )

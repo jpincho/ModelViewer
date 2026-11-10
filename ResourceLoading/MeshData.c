@@ -255,6 +255,17 @@ bool BuildMeshDataFromDescriptor ( const struct MeshDescriptor Descriptor, struc
 		Data->BoneWeightStream.Stride = sizeof ( vec4 );
 		}
 
+	if ( Descriptor.BoneCount > 0 )
+		{
+		Data->Bones = ( struct MeshBone * ) malloc ( sizeof ( struct MeshBone ) * Descriptor.BoneCount );
+		if ( Data->Bones == NULL )
+			return false;
+		for ( unsigned BoneIndex = 0; BoneIndex < Descriptor.BoneCount; ++BoneIndex )
+			CopyMeshBone ( Data->Bones + BoneIndex, Descriptor.Bones + BoneIndex );
+		}
+	else
+		Data->Bones = NULL;
+	Data->BoneCount = Descriptor.BoneCount;
 	return true;
 	}
 
@@ -271,4 +282,9 @@ void DestroyMeshData ( struct MeshData *Data )
 	SAFE_DELETE_SHADER_BUFFER ( Data->Position );
 	SAFE_DELETE_SHADER_BUFFER ( Data->Tangent );
 	SAFE_DELETE_SHADER_BUFFER ( Data->TexCoord );
+	for ( unsigned BoneIndex = 0; BoneIndex < Data->BoneCount; ++BoneIndex )
+		{
+		DestroyMeshBone ( Data->Bones + BoneIndex );
+		}
+	SAFE_DEL_C ( Data->Bones );
 	}
