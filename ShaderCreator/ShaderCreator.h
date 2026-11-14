@@ -42,10 +42,12 @@ typedef enum
 	scAttribute_Count
 	} scShaderAttributeType;
 
+#define scSkinningBoneBlockName "u_Bone"
+
 bool scInitializeShaders ( void );
 bool scShutdownShaders ( void );
 crShaderHandle scAssembleShader ( const scShaderDefinition NewDefinition );
-void scCreateShaderCode ( const scShaderDefinition NewRequirements, crShaderCode *OutputCode );
+bool scCreateShaderCode ( const scShaderDefinition NewRequirements, crShaderCode *OutputCode );
 
 const char *scGetStandardTextureUniformName ( const MatTexType Type );
 const char *scGetStandardMaterialUniformName ( const MatTexType Type );

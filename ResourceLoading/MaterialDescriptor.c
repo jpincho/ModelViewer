@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-void LogMaterialDescriptor ( const MaterialDescriptor *Descriptor, const int Indentation )
+void LogMaterialDescriptor ( const struct MaterialDescriptor *Descriptor, const int Indentation )
 	{
 	LOG_DEBUG ( "%*sMaterial '%s'", Indentation, "", Descriptor->MaterialName );
 	LOG_DEBUG ( "%*sDiffuse %.02f %.02f %.02f", Indentation + 1, "", Descriptor->Diffuse, Descriptor->Diffuse.y, Descriptor->Diffuse.z );
@@ -16,16 +16,16 @@ void LogMaterialDescriptor ( const MaterialDescriptor *Descriptor, const int Ind
 		}
 	}
 
-void DestroyMaterialDescriptor ( MaterialDescriptor *Material )
+void DestroyMaterialDescriptor ( struct MaterialDescriptor *Material )
 	{
 	SAFE_DEL_C ( Material->MaterialName );
 	for ( unsigned index = 0; index < MatTexType_Count; ++index )
 		SAFE_DEL_C ( Material->Textures[index].TextureName );
 	}
 
-void CopyMaterialDescriptor ( MaterialDescriptor *Output, const MaterialDescriptor *Input )
+void CopyMaterialDescriptor ( struct MaterialDescriptor *Output, const struct MaterialDescriptor *Input )
 	{
-	memcpy ( Output, Input, sizeof ( MaterialDescriptor ) );
+	memcpy ( Output, Input, sizeof ( struct MaterialDescriptor ) );
 	Output->MaterialName = Input->MaterialName ? strdup ( Input->MaterialName ) : NULL;
 	for ( unsigned TextureType = 0; TextureType < ( unsigned ) MatTexType_Count; ++TextureType )
 		{

@@ -1,7 +1,7 @@
 #include "ModelData.h"
 #include <Platform/Platform.h>
 
-void DestroyModelData ( ModelData *Data )
+void DestroyModelData ( struct ModelData *Data )
 	{
 	SAFE_DEL_C ( Data->Meshes );
 	Data->MeshCount = 0;

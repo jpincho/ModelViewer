@@ -9,14 +9,14 @@ BEGIN_C_DECLARATIONS
 
 #define MAX_WEIGHTS_PER_VERTEX 4
 
-typedef struct
+struct MeshBone
 	{
 	int NodeIndex;
 	char *BoneName;
 	mat4 ModelToBoneMatrix;
-	} MeshBone;
+	};
 
-typedef struct
+struct MeshTreeNode
 	{
 	char *NodeName;
 	mat4 DefaultTransformationMatrix;
@@ -25,9 +25,9 @@ typedef struct
 	int *ChildNodes;
 	unsigned ChildNodeCount;
 	int ParentNode;
-	} MeshTreeNode;
+	};
 
-typedef struct
+struct MeshDescriptor
 	{
 	vec4 *Colors, *Emissive;
 	vec3 *Positions, *Normals, *Tangents, *Bitangents;
@@ -36,23 +36,23 @@ typedef struct
 	uint64_t VertexCount;
 	uint32_t *Indices;
 	uint64_t IndexCount;
-	MeshBone *Bones;
+	struct MeshBone *Bones;
 	unsigned BoneCount;
 	float *BoneWeights;
 	uint32_t *BoneIndices;
 
-	AABB BoundingBox;
+	struct AABB BoundingBox;
 	crPrimitiveType Primitive;
 	char *MeshName, *MaterialName;
-	} MeshDescriptor;
+	};
 
-void LogMeshDescriptor ( const MeshDescriptor Descriptor, const int Indentation );
-void CopyMeshBone ( MeshBone *Output, const MeshBone *Input );
-void DestroyMeshBone ( MeshBone *Bone );
-void CopyMeshDescriptor ( MeshDescriptor *Output, const MeshDescriptor *Input );
-void DestroyMeshDescriptor ( MeshDescriptor *Descriptor );
-void CopyMeshTreeNode ( MeshTreeNode *Output, const MeshTreeNode *Input );
-void DestroyMeshTreeNode ( MeshTreeNode *Node );
-void LogMeshTreeNode ( MeshTreeNode *NodeTree, const unsigned NodeIndex, const unsigned Depth );
+void LogMeshDescriptor ( const struct MeshDescriptor Descriptor, const int Indentation );
+void CopyMeshBone ( struct MeshBone *Output, const struct MeshBone *Input );
+void DestroyMeshBone ( struct MeshBone *Bone );
+void CopyMeshDescriptor ( struct MeshDescriptor *Output, const struct MeshDescriptor *Input );
+void DestroyMeshDescriptor ( struct MeshDescriptor *Descriptor );
+void CopyMeshTreeNode ( struct MeshTreeNode *Output, const struct MeshTreeNode *Input );
+void DestroyMeshTreeNode ( struct MeshTreeNode *Node );
+void LogMeshTreeNode ( struct MeshTreeNode *NodeTree, const unsigned NodeIndex, const unsigned Depth );
 END_C_DECLARATIONS
 

@@ -52,17 +52,25 @@ static sgNodeHandle MultiplyMat3ByVec3 ( const sgGraphHandle Graph, const sgNode
 	return Product;
 	}
 
+static const char *GraphTextureName ( const MatTexType Type )
+	{
+	static char Names[MatTexType_Count][50] = { 0 };
+	if ( Names[Type][0] == 0 )
+		snprintf ( Names[Type], 50, "%sTexture", Stringify_MatTexType ( Type ) );
+	return Names[Type];
+	}
+
 static sgNodeHandle AddVec4Source ( const sgGraphHandle Graph, const scMaterialSource Source, const MatTexType Type, const sgNodeHandle UV, const sgNodeHandle Attribute, const sgNodeHandle OffValue )
 	{
 	switch ( Source )
 		{
 		case scSource_Uniform:
-			return sgAddUniform ( Graph, scGetStandardMaterialUniformName ( Type ), sgValueType_Vec4 );
+			return sgAddUniform ( Graph, Stringify_MatTexType ( Type ), sgValueType_Vec4 );
 		case scSource_Attribute:
 			return Attribute;
 		case scSource_Texture:
 			{
-			sgNodeHandle Sampler = sgAddUniform ( Graph, scGetStandardTextureUniformName ( Type ), sgValueType_Sampler2D );
+			sgNodeHandle Sampler = sgAddUniform ( Graph, GraphTextureName ( Type ), sgValueType_Sampler2D );
 			sgNodeHandle Sample = sgAddTextureSample ( Graph );
 			if ( ( sgAddConnection ( Graph, Sampler, 0, Sample, 0 ) == false ) ||
 			        ( sgAddConnection ( Graph, UV, 0, Sample, 1 ) == false ) )
@@ -80,12 +88,12 @@ static sgNodeHandle AddFloatSource ( const sgGraphHandle Graph, const scMaterial
 	switch ( Source )
 		{
 		case scSource_Uniform:
-			return sgAddUniform ( Graph, scGetStandardMaterialUniformName ( Type ), sgValueType_Float );
+			return sgAddUniform ( Graph, Stringify_MatTexType ( Type ), sgValueType_Float );
 		case scSource_Attribute:
 			return Attribute;
 		case scSource_Texture:
 			{
-			sgNodeHandle Sampler = sgAddUniform ( Graph, scGetStandardTextureUniformName ( Type ), sgValueType_Sampler2D );
+			sgNodeHandle Sampler = sgAddUniform ( Graph, GraphTextureName ( Type ), sgValueType_Sampler2D );
 			sgNodeHandle Sample = sgAddTextureSample ( Graph );
 			sgNodeHandle Channel = sgAddSwizzle ( Graph, "a", sgValueType_Vec4, sgValueType_Float );
 			if ( ( sgAddConnection ( Graph, Sampler, 0, Sample, 0 ) == false ) ||
@@ -105,8 +113,8 @@ static sgNodeHandle AddWorldNormal ( const sgGraphHandle Graph, const scShaderDe
 	if ( Definition.NormalSource == scSource_Texture )
 		{
 		/* Tangent and bitangent are rotated by the normal matrix. Skinning does not expose the blended bone matrix. */
-		sgNodeHandle Tangent = sgAddAttribute ( Graph, scGetStandardAttributeName ( scAttribute_Tangent ), sgValueType_Vec3 );
-		sgNodeHandle Bitangent = sgAddAttribute ( Graph, scGetStandardAttributeName ( scAttribute_Bitangent ), sgValueType_Vec3 );
+		sgNodeHandle Tangent = sgAddAttribute ( Graph, Stringify_ShaderAttributeType ( scAttribute_Tangent ), sgValueType_Vec3 );
+		sgNodeHandle Bitangent = sgAddAttribute ( Graph, Stringify_ShaderAttributeType ( scAttribute_Bitangent ), sgValueType_Vec3 );
 		sgNodeHandle WorldTangent = MultiplyMat3ByVec3 ( Graph, NormalMatrix, Tangent, 0 );
 		sgNodeHandle WorldBitangent = MultiplyMat3ByVec3 ( Graph, NormalMatrix, Bitangent, 0 );
 		sgNodeHandle WorldNormal = MultiplyMat3ByVec3 ( Graph, NormalMatrix, Normal, NormalPin );
@@ -116,7 +124,7 @@ static sgNodeHandle AddWorldNormal ( const sgGraphHandle Graph, const scShaderDe
 		        ( sgAddConnection ( Graph, WorldBitangent, 0, TBN, 2 ) == false ) )
 			return sgNodeHandle_Invalid;
 
-		sgNodeHandle Sampler = sgAddUniform ( Graph, scGetStandardTextureUniformName ( MatTexType_Normal ), sgValueType_Sampler2D );
+		sgNodeHandle Sampler = sgAddUniform ( Graph, GraphTextureName ( MatTexType_Normal ), sgValueType_Sampler2D );
 		sgNodeHandle Sample = sgAddTextureSample ( Graph );
 		sgNodeHandle SampleXYZ = sgAddSwizzle ( Graph, "xyz", sgValueType_Vec4, sgValueType_Vec3 );
 		sgNodeHandle Mapped = sgAddNormalMap ( Graph );
@@ -147,10 +155,10 @@ static bool FillShaderGraph ( const sgGraphHandle Graph, const scShaderDefinitio
 	                                SourceUsesColorAttribute ( Definition.SpecularSource );
 	const bool UseLighting = ( Definition.LightModel != scLightModel_Off ) && ( Definition.NormalSource != scSource_Off );
 
-	sgNodeHandle Position = sgAddAttribute ( Graph, scGetStandardAttributeName ( scAttribute_Position ), sgValueType_Vec3 );
-	sgNodeHandle Model = sgAddUniform ( Graph, "u_ModelMatrix", sgValueType_Mat4 );
-	sgNodeHandle View = sgAddUniform ( Graph, "u_ViewMatrix", sgValueType_Mat4 );
-	sgNodeHandle Projection = sgAddUniform ( Graph, "u_ProjectionMatrix", sgValueType_Mat4 );
+	sgNodeHandle Position = sgAddAttribute ( Graph, Stringify_ShaderAttributeType ( scAttribute_Position ), sgValueType_Vec3 );
+	sgNodeHandle Model = sgAddUniform ( Graph, "ModelMatrix", sgValueType_Mat4 );
+	sgNodeHandle View = sgAddUniform ( Graph, "ViewMatrix", sgValueType_Mat4 );
+	sgNodeHandle Projection = sgAddUniform ( Graph, "ProjectionMatrix", sgValueType_Mat4 );
 	if ( ( Position == sgNodeHandle_Invalid ) || ( Model == sgNodeHandle_Invalid ) ||
 	        ( View == sgNodeHandle_Invalid ) || ( Projection == sgNodeHandle_Invalid ) )
 		return false;
@@ -161,7 +169,7 @@ static bool FillShaderGraph ( const sgGraphHandle Graph, const scShaderDefinitio
 	unsigned ShadingNormalPin = 0;
 	if ( UseLighting )
 		{
-		ShadingNormal = sgAddAttribute ( Graph, scGetStandardAttributeName ( scAttribute_Normal ), sgValueType_Vec3 );
+		ShadingNormal = sgAddAttribute ( Graph, Stringify_ShaderAttributeType ( scAttribute_Normal ), sgValueType_Vec3 );
 		if ( ShadingNormal == sgNodeHandle_Invalid )
 			return false;
 		}
@@ -171,11 +179,12 @@ static bool FillShaderGraph ( const sgGraphHandle Graph, const scShaderDefinitio
 		if ( ShadingNormal == sgNodeHandle_Invalid )
 			ShadingNormal = sgAddConstantVec3 ( Graph, 0.0f, 0.0f, 1.0f );
 
-		sgNodeHandle BoneIndex = sgAddAttribute ( Graph, scGetStandardAttributeName ( scAttribute_BoneIndex ), sgValueType_UVec4 );
-		sgNodeHandle BoneWeight = sgAddAttribute ( Graph, scGetStandardAttributeName ( scAttribute_BoneWeight ), sgValueType_Vec4 );
+		sgNodeHandle BoneIndex = sgAddAttribute ( Graph, Stringify_ShaderAttributeType ( scAttribute_BoneIndex ), sgValueType_UVec4 );
+		sgNodeHandle BoneWeight = sgAddAttribute ( Graph, Stringify_ShaderAttributeType ( scAttribute_BoneWeight ), sgValueType_Vec4 );
 		sgNodeHandle Skin = sgAddSkinning ( Graph );
 		if ( ( ShadingNormal == sgNodeHandle_Invalid ) || ( BoneIndex == sgNodeHandle_Invalid ) ||
 		        ( BoneWeight == sgNodeHandle_Invalid ) || ( Skin == sgNodeHandle_Invalid ) ||
+		        ( sgSetNodeName ( Graph, Skin, scSkinningBoneBlockName ) == false ) ||
 		        ( sgSetSkinningBoneCount ( Graph, Skin, Definition.BoneCount ) == false ) ||
 		        ( sgAddConnection ( Graph, Position, 0, Skin, 0 ) == false ) ||
 		        ( sgAddConnection ( Graph, ShadingNormal, ShadingNormalPin, Skin, 1 ) == false ) ||
@@ -201,7 +210,7 @@ static bool FillShaderGraph ( const sgGraphHandle Graph, const scShaderDefinitio
 	sgNodeHandle UV = sgNodeHandle_Invalid;
 	if ( UsesTextures )
 		{
-		UV = sgAddAttribute ( Graph, scGetStandardAttributeName ( scAttribute_TextureCoordinate ), sgValueType_Vec2 );
+		UV = sgAddAttribute ( Graph, Stringify_ShaderAttributeType ( scAttribute_TextureCoordinate ), sgValueType_Vec2 );
 		if ( UV == sgNodeHandle_Invalid )
 			return false;
 		}
@@ -209,7 +218,7 @@ static bool FillShaderGraph ( const sgGraphHandle Graph, const scShaderDefinitio
 	sgNodeHandle ColorAttr = sgNodeHandle_Invalid;
 	if ( UsesColorAttribute )
 		{
-		ColorAttr = sgAddAttribute ( Graph, scGetStandardAttributeName ( scAttribute_Color ), sgValueType_Vec4 );
+		ColorAttr = sgAddAttribute ( Graph, Stringify_ShaderAttributeType ( scAttribute_Color ), sgValueType_Vec4 );
 		if ( ColorAttr == sgNodeHandle_Invalid )
 			return false;
 		}
@@ -227,15 +236,15 @@ static bool FillShaderGraph ( const sgGraphHandle Graph, const scShaderDefinitio
 		sgNodeHandle ShininessAttr = sgNodeHandle_Invalid;
 		if ( Definition.ShininessSource == scSource_Attribute )
 			{
-			ShininessAttr = sgAddAttribute ( Graph, scGetStandardAttributeName ( scAttribute_Shininess ), sgValueType_Float );
+			ShininessAttr = sgAddAttribute ( Graph, Stringify_ShaderAttributeType ( scAttribute_Shininess ), sgValueType_Float );
 			if ( ShininessAttr == sgNodeHandle_Invalid )
 				return false;
 			}
 		sgNodeHandle DefaultShininess = sgAddConstantFloat ( Graph, 0.6f );
 		sgNodeHandle Shininess = AddFloatSource ( Graph, Definition.ShininessSource, MatTexType_Shininess, UV, ShininessAttr, DefaultShininess );
-		sgNodeHandle NormalMatrix = sgAddUniform ( Graph, "u_NormalMatrix", sgValueType_Mat3 );
+		sgNodeHandle NormalMatrix = sgAddUniform ( Graph, "NormalMatrix", sgValueType_Mat3 );
 		sgNodeHandle Normal = AddWorldNormal ( Graph, Definition, NormalMatrix, ShadingNormal, ShadingNormalPin, UV );
-		sgNodeHandle CameraPosition = sgAddUniform ( Graph, "u_ViewPosition", sgValueType_Vec3 );
+		sgNodeHandle CameraPosition = sgAddUniform ( Graph, "ViewPosition", sgValueType_Vec3 );
 		sgNodeHandle Lit = sgAddBlinnPhongNode ( Graph );
 		if ( ( sgAddConnection ( Graph, WorldPosition4, 0, WorldPosition3, 0 ) == false ) ||
 		        ( Specular == sgNodeHandle_Invalid ) || ( DefaultShininess == sgNodeHandle_Invalid ) ||
@@ -256,7 +265,7 @@ static bool FillShaderGraph ( const sgGraphHandle Graph, const scShaderDefinitio
 			sgNodeHandle EmissiveAttr = sgNodeHandle_Invalid;
 			if ( Definition.EmissivenessSource == scSource_Attribute )
 				{
-				EmissiveAttr = sgAddAttribute ( Graph, scGetStandardAttributeName ( scAttribute_Emissiveness ), sgValueType_Vec4 );
+				EmissiveAttr = sgAddAttribute ( Graph, Stringify_ShaderAttributeType ( scAttribute_Emissiveness ), sgValueType_Vec4 );
 				if ( EmissiveAttr == sgNodeHandle_Invalid )
 					return false;
 				}
@@ -279,16 +288,15 @@ static bool FillShaderGraph ( const sgGraphHandle Graph, const scShaderDefinitio
 
 static sgGraphHandle BuildShaderGraph ( const scShaderDefinition Definition )
 	{
-	if ( ( Definition.Skinning ) && ( Definition.BoneCount == 0 ) )
-		{
-		LOG_ERROR ( "Invalid bone count for shader creator" );
-		return sgGraphHandle_Invalid;
-		}
-
 	sgGraphHandle Graph = sgCreate ();
 	if ( Graph == sgGraphHandle_Invalid )
 		return sgGraphHandle_Invalid;
 	if ( FillShaderGraph ( Graph, Definition ) == false )
+		{
+		sgDestroy ( Graph );
+		return sgGraphHandle_Invalid;
+		}
+	if ( sgValidateGraph ( Graph ) == false )
 		{
 		sgDestroy ( Graph );
 		return sgGraphHandle_Invalid;
@@ -313,22 +321,10 @@ crShaderHandle scAssembleShader ( const scShaderDefinition NewDefinition )
 	if ( ShaderCreatorInitialized == false )
 		scInitializeShaders ();
 
-	if ( ( NewDefinition.Skinning ) && ( NewDefinition.BoneCount == 0 ) )
-		{
-		LOG_ERROR ( "Invalid bone count for shader creator" );
-		return crShaderHandle_Invalid;
-		}
-
 	crShaderCode Code;
 	memset ( &Code, 0, sizeof ( Code ) );
-	scCreateShaderCode ( NewDefinition, &Code );
-	if ( ( Code.VertexShader == NULL ) || ( Code.FragmentShader == NULL ) )
-		{
-		SAFE_DEL_C ( Code.VertexShader );
-		SAFE_DEL_C ( Code.FragmentShader );
-		SAFE_DEL_C ( Code.GeometryShader );
+	if ( scCreateShaderCode ( NewDefinition, &Code ) == false )
 		return crShaderHandle_Invalid;
-		}
 
 	crShaderHandle Handle = crCreateShader ( Code );
 	SAFE_DEL_C ( Code.VertexShader );
@@ -337,7 +333,7 @@ crShaderHandle scAssembleShader ( const scShaderDefinition NewDefinition )
 	return Handle;
 	}
 
-void scCreateShaderCode ( const scShaderDefinition NewRequirements, crShaderCode *OutputCode )
+bool scCreateShaderCode ( const scShaderDefinition NewRequirements, crShaderCode *OutputCode )
 	{
 	OutputCode->VertexShader = NULL;
 	OutputCode->FragmentShader = NULL;
@@ -347,7 +343,7 @@ void scCreateShaderCode ( const scShaderDefinition NewRequirements, crShaderCode
 	if ( Graph == sgGraphHandle_Invalid )
 		{
 		LOG_ERROR ( "Unable to build shader graph from definition" );
-		return;
+		return false;
 		}
 	if ( sgGenerateGLSL ( Graph, sgGetDefaultGLSLGeneratorOptions(), &OutputCode->VertexShader, &OutputCode->FragmentShader ) == false )
 		{
@@ -355,8 +351,11 @@ void scCreateShaderCode ( const scShaderDefinition NewRequirements, crShaderCode
 		SAFE_DEL_C ( OutputCode->VertexShader );
 		SAFE_DEL_C ( OutputCode->FragmentShader );
 		SAFE_DEL_C ( OutputCode->GeometryShader );
+		sgDestroy ( Graph );
+		return false;
 		}
 	sgDestroy ( Graph );
+	return true;
 	}
 
 const char *scGetStandardTextureUniformName ( const MatTexType Type )

@@ -28,7 +28,7 @@
 
 const unsigned MAX_BONE_WEIGHTS_PER_VERTEX = 4;
 
-static crTextureWrapMode translate_aiWrapMode_to_crTextureWrapMode ( const enum aiTextureMapMode input )
+static crTextureWrapMode Translate_aiTextureMapMode ( const enum aiTextureMapMode input )
 	{
 	switch ( input )
 		{
@@ -45,9 +45,9 @@ static crTextureWrapMode translate_aiWrapMode_to_crTextureWrapMode ( const enum 
 		}
 	}
 
-static MatTexType translate_aiTextureType_to_MatTexType ( const enum aiTextureType assimp_texture_type )
+static MatTexType Translate_aiTextureType ( const enum aiTextureType input )
 	{
-	switch ( assimp_texture_type )
+	switch ( input )
 		{
 		case aiTextureType_DIFFUSE:
 			return MatTexType_Diffuse;
@@ -80,11 +80,11 @@ static MatTexType translate_aiTextureType_to_MatTexType ( const enum aiTextureTy
 		case aiTextureType_AMBIENT_OCCLUSION:
 
 		default:
-			return 0;
+			return -1;
 		};
 	}
 
-static enum aiTextureType translate_MaxTexType_to_aiTextureType ( const MatTexType TextureType )
+static enum aiTextureType TranslateMatTexTypeToAssimp ( const MatTexType TextureType )
 	{
 	switch ( TextureType )
 		{
@@ -116,7 +116,7 @@ static enum aiTextureType translate_MaxTexType_to_aiTextureType ( const MatTexTy
 	return aiTextureType_NONE;
 	}
 
-static enum aiTextureType fallback_aiTextureType ( const MatTexType TextureType )
+static enum aiTextureType GetAssimpFallbackTextureType ( const MatTexType TextureType )
 	{
 	switch ( TextureType )
 		{
@@ -133,19 +133,19 @@ static enum aiTextureType fallback_aiTextureType ( const MatTexType TextureType 
 		}
 	}
 
-static void translate_aiMatrix4x4_to_mat4 ( const struct aiMatrix4x4 input, mat4 *output )
+static void Translate_aiMatrix4x4 ( const struct aiMatrix4x4 input, mat4 *output )
 	{
 	math_mat4_transpose ( output, * ( ( mat4 * ) &input.a1 ) );
 	}
 
-static void translate_aiVector3D_to_vec3 ( const struct aiVector3D input, vec3 *output )
+static void Translate_aiVector3D ( const struct aiVector3D input, vec3 *output )
 	{
 	output->x = input.x;
 	output->y = input.y;
 	output->z = input.z;
 	}
 
-static void translate_aiQuaternion_to_quat ( const struct aiQuaternion input, vec4 *output )
+static void Translate_aiQuaternion ( const struct aiQuaternion input, vec4 *output )
 	{
 	output->x = input.x;
 	output->y = input.y;
@@ -212,7 +212,7 @@ static bool ReadMetadataDouble ( const struct aiMetadata *Metadata, const char *
 	return false;
 	}
 
-static unsigned FindRootNodeIndex ( const MeshTreeNode *NodeTree, const unsigned NodeCount ) // Should always be zero, but...
+static unsigned FindRootNodeIndex ( const struct MeshTreeNode *NodeTree, const unsigned NodeCount ) // Should always be zero, but...
 	{
 	for ( unsigned NodeIndex = 0; NodeIndex < NodeCount; ++NodeIndex )
 		{
@@ -222,7 +222,7 @@ static unsigned FindRootNodeIndex ( const MeshTreeNode *NodeTree, const unsigned
 	return 0;
 	}
 
-static void ApplyAssimpMetadataToRootNode ( MeshTreeNode *RootNode, const struct aiMetadata *Metadata )
+static void ApplyAssimpMetadataToRootNode ( struct MeshTreeNode *RootNode, const struct aiMetadata *Metadata )
 	{
 	int32_t UpAxis = 1, UpAxisSign = 1, FrontAxis = 2, FrontAxisSign = 1, CoordAxis = 0, CoordAxisSign = 1;
 	double UnitScaleFactor = 1.0;
@@ -276,12 +276,12 @@ static void CountAssimpNodes ( const struct aiNode *CurrentAssimpNode, unsigned 
 		}
 	}
 
-static unsigned LoadAssimpNode ( MeshTreeNode *NodeTree, unsigned *CurrentNodeTreeSize, const int ParentIndex, const struct aiNode *CurrentAssimpNode )
+static unsigned LoadAssimpNode ( struct MeshTreeNode *NodeTree, unsigned *CurrentNodeTreeSize, const int ParentIndex, const struct aiNode *CurrentAssimpNode )
 	{
 	unsigned NewIndex = ( *CurrentNodeTreeSize )++;
 	NodeTree[NewIndex].NodeName = strdup ( CurrentAssimpNode->mName.data );
 	NodeTree[NewIndex].ParentNode = ParentIndex;
-	translate_aiMatrix4x4_to_mat4 ( CurrentAssimpNode->mTransformation, &NodeTree[NewIndex].DefaultTransformationMatrix );
+	Translate_aiMatrix4x4 ( CurrentAssimpNode->mTransformation, &NodeTree[NewIndex].DefaultTransformationMatrix );
 	NodeTree[NewIndex].MeshIndexCount = CurrentAssimpNode->mNumMeshes;
 	if ( NodeTree[NewIndex].MeshIndexCount != 0 )
 		{
@@ -308,9 +308,9 @@ static unsigned LoadAssimpNode ( MeshTreeNode *NodeTree, unsigned *CurrentNodeTr
 	return NewIndex;
 	}
 
-static bool LoadAssimpMaterial ( const struct aiMaterial *AssimpMaterial, MaterialDescriptor *Descriptor )
+static bool LoadAssimpMaterial ( const struct aiMaterial *AssimpMaterial, struct MaterialDescriptor *Descriptor )
 	{
-	memset ( Descriptor, 0, sizeof ( MaterialDescriptor ) );
+	memset ( Descriptor, 0, sizeof ( struct MaterialDescriptor ) );
 
 	struct aiColor4D AssimpColor4;
 	float FloatValue;
@@ -336,10 +336,10 @@ static bool LoadAssimpMaterial ( const struct aiMaterial *AssimpMaterial, Materi
 
 	for ( unsigned TextureTypeIterator = 0; TextureTypeIterator < ( unsigned ) MatTexType_Count; ++TextureTypeIterator )
 		{
-		enum aiTextureType AssimpType = translate_MaxTexType_to_aiTextureType ( TextureTypeIterator );
+		enum aiTextureType AssimpType = TranslateMatTexTypeToAssimp ( TextureTypeIterator );
 		if ( aiGetMaterialString ( AssimpMaterial, AI_MATKEY_TEXTURE ( AssimpType, 0 ), &AssimpString ) != AI_SUCCESS )
 			{
-			AssimpType = fallback_aiTextureType ( TextureTypeIterator );
+			AssimpType = GetAssimpFallbackTextureType ( TextureTypeIterator );
 			if ( ( AssimpType == aiTextureType_NONE ) || ( aiGetMaterialString ( AssimpMaterial, AI_MATKEY_TEXTURE ( AssimpType, 0 ), &AssimpString ) != AI_SUCCESS ) )
 				continue;
 			}
@@ -348,8 +348,8 @@ static bool LoadAssimpMaterial ( const struct aiMaterial *AssimpMaterial, Materi
 		if ( ( aiGetMaterialInteger ( AssimpMaterial, AI_MATKEY_MAPPINGMODE_U ( AssimpType, 0 ), &hwrap ) == AI_SUCCESS ) &&
 		        ( aiGetMaterialInteger ( AssimpMaterial, AI_MATKEY_MAPPINGMODE_V ( AssimpType, 0 ), &vwrap ) == AI_SUCCESS ) )
 			{
-			Descriptor->Textures[TextureTypeIterator].WrapSettings.Horizontal = translate_aiWrapMode_to_crTextureWrapMode ( hwrap );
-			Descriptor->Textures[TextureTypeIterator].WrapSettings.Vertical = translate_aiWrapMode_to_crTextureWrapMode ( vwrap );
+			Descriptor->Textures[TextureTypeIterator].WrapSettings.Horizontal = Translate_aiTextureMapMode ( hwrap );
+			Descriptor->Textures[TextureTypeIterator].WrapSettings.Vertical = Translate_aiTextureMapMode ( vwrap );
 			}
 		}
 
@@ -403,17 +403,17 @@ static bool LoadAssimpTexture ( const struct aiTexture *AssimpTexture, crTexture
 	return true;
 	}
 
-static bool LoadAssimpBone ( const struct aiBone *AssimpBone, MeshBone *Descriptor )
+static bool LoadAssimpBone ( const struct aiBone *AssimpBone, struct MeshBone *Descriptor )
 	{
 	Descriptor->BoneName = strdup ( AssimpBone->mName.data );
 	Descriptor->NodeIndex = -1;
-	translate_aiMatrix4x4_to_mat4 ( AssimpBone->mOffsetMatrix, &Descriptor->ModelToBoneMatrix );
+	Translate_aiMatrix4x4 ( AssimpBone->mOffsetMatrix, &Descriptor->ModelToBoneMatrix );
 	return true;
 	}
 
-static bool LoadAssimpMesh ( const struct aiMesh *AssimpMesh, MeshDescriptor *Descriptor )
+static bool LoadAssimpMesh ( const struct aiMesh *AssimpMesh, struct MeshDescriptor *Descriptor )
 	{
-	memset ( Descriptor, 0, sizeof ( MeshDescriptor ) );
+	memset ( Descriptor, 0, sizeof ( struct MeshDescriptor ) );
 
 	//NewMeshDescriptor.Primitive = Translate((aiPrimitiveType)AssimpMesh->mPrimitiveTypes);
 
@@ -449,7 +449,7 @@ static bool LoadAssimpMesh ( const struct aiMesh *AssimpMesh, MeshDescriptor *De
 			Descriptor->TexCoords[VertexIndex].y = AssimpMesh->mTextureCoords[0][VertexIndex].y;
 			}
 		}
-	if (( AssimpMesh->mColors != NULL ) && (AssimpMesh->mColors[0]!=NULL))
+	if ( ( AssimpMesh->mColors != NULL ) && ( AssimpMesh->mColors[0] != NULL ) )
 		{
 		Descriptor->Colors = calloc ( AssimpMesh->mNumVertices, sizeof ( vec4 ) );
 		assert ( Descriptor->Colors );
@@ -502,7 +502,7 @@ static bool LoadAssimpMesh ( const struct aiMesh *AssimpMesh, MeshDescriptor *De
 
 		// Start loading the Bones
 		Descriptor->BoneCount = AssimpMesh->mNumBones;
-		Descriptor->Bones = calloc ( Descriptor->BoneCount, sizeof ( MeshBone ) );
+		Descriptor->Bones = calloc ( Descriptor->BoneCount, sizeof ( struct MeshBone ) );
 		Descriptor->BoneWeights = calloc ( AssimpMesh->mNumVertices * MAX_BONE_WEIGHTS_PER_VERTEX, sizeof ( float ) );
 		Descriptor->BoneIndices = calloc ( AssimpMesh->mNumVertices * MAX_BONE_WEIGHTS_PER_VERTEX, sizeof ( uint32_t ) );
 		unsigned *NextWeightSlot = calloc ( AssimpMesh->mNumVertices, sizeof ( unsigned ) );
@@ -553,9 +553,9 @@ static bool LoadAssimpMesh ( const struct aiMesh *AssimpMesh, MeshDescriptor *De
 	return true;
 	}
 
-static bool LoadAssimpAnimation ( const struct aiAnimation *AssimpAnimation, AnimationDescriptor *Descriptor )
+static bool LoadAssimpAnimation ( const struct aiAnimation *AssimpAnimation, struct AnimationDescriptor *Descriptor )
 	{
-	memset ( Descriptor, 0, sizeof ( AnimationDescriptor ) );
+	memset ( Descriptor, 0, sizeof ( struct AnimationDescriptor ) );
 
 	Descriptor->AnimationName = strdup ( AssimpAnimation->mName.data );
 	const double TicksPerSecond = AssimpAnimation->mTicksPerSecond != 0.0 ? AssimpAnimation->mTicksPerSecond : 30.0;
@@ -574,7 +574,7 @@ static bool LoadAssimpAnimation ( const struct aiAnimation *AssimpAnimation, Ani
 		for ( unsigned KeyIndex = 0; KeyIndex < AssimpAnimation->mChannels[channel_index]->mNumPositionKeys; ++KeyIndex )
 			{
 			CurrentTrack->Positions[KeyIndex].Time = AssimpAnimation->mChannels[channel_index]->mPositionKeys[KeyIndex].mTime / TicksPerSecond;
-			translate_aiVector3D_to_vec3 ( AssimpAnimation->mChannels[channel_index]->mPositionKeys[KeyIndex].mValue, &CurrentTrack->Positions[KeyIndex].Vec3Value );
+			Translate_aiVector3D ( AssimpAnimation->mChannels[channel_index]->mPositionKeys[KeyIndex].mValue, &CurrentTrack->Positions[KeyIndex].Vec3Value );
 			}
 
 		CurrentTrack->Rotations = calloc ( AssimpAnimation->mChannels[channel_index]->mNumRotationKeys, sizeof ( NodeTrackKey ) );
@@ -583,7 +583,7 @@ static bool LoadAssimpAnimation ( const struct aiAnimation *AssimpAnimation, Ani
 		for ( unsigned KeyIndex = 0; KeyIndex < AssimpAnimation->mChannels[channel_index]->mNumRotationKeys; ++KeyIndex )
 			{
 			CurrentTrack->Rotations[KeyIndex].Time = AssimpAnimation->mChannels[channel_index]->mRotationKeys[KeyIndex].mTime / TicksPerSecond;
-			translate_aiQuaternion_to_quat ( AssimpAnimation->mChannels[channel_index]->mRotationKeys[KeyIndex].mValue, &CurrentTrack->Rotations[KeyIndex].QuatValue );
+			Translate_aiQuaternion ( AssimpAnimation->mChannels[channel_index]->mRotationKeys[KeyIndex].mValue, &CurrentTrack->Rotations[KeyIndex].QuatValue );
 			}
 
 		CurrentTrack->Scales = calloc ( AssimpAnimation->mChannels[channel_index]->mNumScalingKeys, sizeof ( NodeTrackKey ) );
@@ -592,14 +592,14 @@ static bool LoadAssimpAnimation ( const struct aiAnimation *AssimpAnimation, Ani
 		for ( unsigned KeyIndex = 0; KeyIndex < AssimpAnimation->mChannels[channel_index]->mNumScalingKeys; ++KeyIndex )
 			{
 			CurrentTrack->Scales[KeyIndex].Time = AssimpAnimation->mChannels[channel_index]->mScalingKeys[KeyIndex].mTime / TicksPerSecond;
-			translate_aiVector3D_to_vec3 ( AssimpAnimation->mChannels[channel_index]->mScalingKeys[KeyIndex].mValue, &CurrentTrack->Scales[KeyIndex].Vec3Value );
+			Translate_aiVector3D ( AssimpAnimation->mChannels[channel_index]->mScalingKeys[KeyIndex].mValue, &CurrentTrack->Scales[KeyIndex].Vec3Value );
 			}
 		}
 	LOG_DEBUG ( "Loaded animation '%s'", Descriptor->AnimationName );
 	return true;
 	}
 
-bool LoadFileWithAssimp ( const char *Filename, DataFileContentDescriptor *FileData )
+bool LoadFileWithAssimp ( const char *Filename, struct DataFileContentDescriptor *FileData )
 	{
 	unsigned AssimpImportFlags = aiProcess_RemoveRedundantMaterials;
 	AssimpImportFlags |= aiProcess_Triangulate;
@@ -624,7 +624,7 @@ bool LoadFileWithAssimp ( const char *Filename, DataFileContentDescriptor *FileD
 
 	FileData->NodeCount = 0;
 	CountAssimpNodes ( AssimpScene->mRootNode, &FileData->NodeCount );
-	FileData->NodeTree = calloc ( FileData->NodeCount, sizeof ( MeshTreeNode ) );
+	FileData->NodeTree = calloc ( FileData->NodeCount, sizeof ( struct MeshTreeNode ) );
 	unsigned StartIndex = 0;
 	LoadAssimpNode ( FileData->NodeTree, &StartIndex, -1, AssimpScene->mRootNode );
 
@@ -655,12 +655,12 @@ bool LoadFileWithAssimp ( const char *Filename, DataFileContentDescriptor *FileD
 	if ( AssimpScene->mNumMaterials != 0 )
 		{
 		LOG_DEBUG ( "Loading %u materials", AssimpScene->mNumMaterials );
-		FileData->Materials = calloc ( AssimpScene->mNumMaterials, sizeof ( MaterialDescriptor ) );
+		FileData->Materials = calloc ( AssimpScene->mNumMaterials, sizeof ( struct MaterialDescriptor ) );
 		assert ( FileData->Materials );
 		FileData->MaterialCount = AssimpScene->mNumMaterials;
 		for ( unsigned MaterialIndex = 0; MaterialIndex < AssimpScene->mNumMaterials; ++MaterialIndex )
 			{
-			MaterialDescriptor NewDescriptor;
+			struct MaterialDescriptor NewDescriptor;
 			if ( LoadAssimpMaterial ( AssimpScene->mMaterials[MaterialIndex], &NewDescriptor ) == false )
 				continue;
 
@@ -685,7 +685,7 @@ bool LoadFileWithAssimp ( const char *Filename, DataFileContentDescriptor *FileD
 	if ( AssimpScene->mNumMeshes != 0 )
 		{
 		LOG_DEBUG ( "Loading %u meshes", AssimpScene->mNumMeshes );
-		FileData->Meshes = calloc ( AssimpScene->mNumMeshes, sizeof ( MeshDescriptor ) );
+		FileData->Meshes = calloc ( AssimpScene->mNumMeshes, sizeof ( struct MeshDescriptor ) );
 		assert ( FileData->Meshes );
 		FileData->MeshCount = AssimpScene->mNumMeshes;
 
@@ -722,7 +722,7 @@ bool LoadFileWithAssimp ( const char *Filename, DataFileContentDescriptor *FileD
 	if ( AssimpScene->mNumAnimations != 0 )
 		{
 		LOG_DEBUG ( "Loading %u animations", AssimpScene->mNumAnimations );
-		FileData->Animations = calloc ( AssimpScene->mNumAnimations, sizeof ( AnimationDescriptor ) );
+		FileData->Animations = calloc ( AssimpScene->mNumAnimations, sizeof ( struct AnimationDescriptor ) );
 		assert ( FileData->Animations );
 		FileData->AnimationCount = AssimpScene->mNumAnimations;
 

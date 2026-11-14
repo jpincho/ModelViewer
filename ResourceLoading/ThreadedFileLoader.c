@@ -18,7 +18,7 @@
 
 typedef struct
 	{
-	DataFileContentDescriptor *Descriptor;
+	struct DataFileContentDescriptor *Descriptor;
 	int TaskID;
 	ThreadedFileLoader_State State;
 	} DataFileEntry;
@@ -75,7 +75,7 @@ static int LoadAssimpFileThreadFunction ( void *Param )
 		}
 
 	DataFiles.Data[Index].State = HUB_STATE_LOADING;
-	DataFileContentDescriptor *Descriptor = DataFiles.Data[Index].Descriptor;
+	struct DataFileContentDescriptor *Descriptor = DataFiles.Data[Index].Descriptor;
 	mtx_unlock ( &ResourceAccessMutex );
 
 	int Result = -1;
@@ -121,7 +121,7 @@ static int LoadTextureFileThreadFunction ( void *Param )
 		}
 
 	DataFiles.Data[Index].State = HUB_STATE_LOADING;
-	DataFileContentDescriptor *Descriptor = DataFiles.Data[Index].Descriptor;
+	struct DataFileContentDescriptor *Descriptor = DataFiles.Data[Index].Descriptor;
 	mtx_unlock ( &ResourceAccessMutex );
 
 	int Result = -1;
@@ -226,7 +226,7 @@ int ThreadedFileLoader_LoadFile ( const char *Filename )
 		return -1;
 		}
 
-	DataFiles.Data[FreeIndex].Descriptor = calloc ( 1, sizeof ( DataFileContentDescriptor ) );
+	DataFiles.Data[FreeIndex].Descriptor = calloc ( 1, sizeof ( struct DataFileContentDescriptor ) );
 	if ( DataFiles.Data[FreeIndex].Descriptor == NULL )
 		{
 		mtx_unlock ( &ResourceAccessMutex );
@@ -306,12 +306,12 @@ void ThreadedFileLoader_UnloadResourceFile ( const int Index )
 	mtx_unlock ( &ResourceAccessMutex );
 	}
 
-DataFileContentDescriptor *ThreadedFileLoader_GetFileContentDescriptor ( const int Index )
+struct DataFileContentDescriptor *ThreadedFileLoader_GetFileContentDescriptor ( const int Index )
 	{
 	if ( ( Index < 0 ) || ( ResourceLoadingThreadpool == NULL ) )
 		return NULL;
 	mtx_lock ( &ResourceAccessMutex );
-	DataFileContentDescriptor *Result = NULL;
+	struct DataFileContentDescriptor *Result = NULL;
 	if ( ( unsigned ) Index < DataFiles.Capacity )
 		Result = DataFiles.Data[Index].Descriptor;
 	mtx_unlock ( &ResourceAccessMutex );

@@ -4,16 +4,18 @@
 
 #define MAX_WEIGHTS_PER_VERTEX 4
 
-typedef struct ModelDescriptor
+struct ModelDescriptor
 	{
 	char *Name;
-	MeshDescriptor *Meshes;
+	struct MeshDescriptor *Meshes;
 	unsigned MeshCount;
-	MeshTreeNode *Nodes;
+	struct MeshTreeNode *Nodes;
 	unsigned NodeCount;
-	AABB AABBox;
-	} ModelDescriptor;
+	struct AABB AABBox;
+	};
 
-void LogModelDescriptor ( const ModelDescriptor Descriptor, const int Indentation );
-void CopyModelDescriptor ( ModelDescriptor *Output, const ModelDescriptor *Input );
-void DestroyModelDescriptor ( ModelDescriptor *Descriptor );
+void LogModelDescriptor ( const struct ModelDescriptor Descriptor, const int Indentation );
+void CopyModelDescriptor ( struct ModelDescriptor *Output, const struct ModelDescriptor *Input );
+void DestroyModelDescriptor ( struct ModelDescriptor *Descriptor );
+void ComputeMeshTreeNodeWorldMatrices ( const struct MeshTreeNode *NodeTree, const unsigned NodeCount, mat4 *WorldMatrices );
+void CalculateModelDescriptorAABB ( struct ModelDescriptor *Descriptor );

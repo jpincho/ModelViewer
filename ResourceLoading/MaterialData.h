@@ -1,10 +1,10 @@
 #pragma once
 #include "MaterialDescriptor.h"
 
-typedef struct
+struct MaterialData
 	{
 	vec3 Diffuse, Specular, Emissive;
 	float Shininess;
 	crTextureBindSettings Textures[MatTexType_Count];
-	} MaterialData;
+	} ;
 

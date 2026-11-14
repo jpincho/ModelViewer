@@ -20,7 +20,7 @@ typedef enum
 	MatTexType_Count
 	} MatTexType;
 
-typedef struct
+struct MaterialDescriptor
 	{
 	char *MaterialName;
 	vec3 Diffuse, Specular, Emissive;
@@ -31,11 +31,11 @@ typedef struct
 		crTextureWrapSettings WrapSettings;
 		crTextureFilterSettings FilterSettings;
 		} Textures[MatTexType_Count];
-	} MaterialDescriptor;
+	};
 
-void LogMaterialDescriptor ( const MaterialDescriptor *Descriptor, const int Indentation );
-void DestroyMaterialDescriptor ( MaterialDescriptor *Material );
-void CopyMaterialDescriptor ( MaterialDescriptor *Output, const MaterialDescriptor *Input );
+void LogMaterialDescriptor ( const struct MaterialDescriptor *Descriptor, const int Indentation );
+void DestroyMaterialDescriptor ( struct MaterialDescriptor *Material );
+void CopyMaterialDescriptor ( struct MaterialDescriptor *Output, const struct MaterialDescriptor *Input );
 const char *Stringify_MatTexType ( const MatTexType Value );
 
 END_C_DECLARATIONS

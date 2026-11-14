@@ -6,21 +6,21 @@
 #include "AnimationDescriptor.h"
 #include <C_CrossRenderer/Texture.h>
 
-typedef struct
+struct DataFileContentDescriptor
 	{
 	char *Filename;
-	MeshDescriptor *Meshes;
+	struct MeshDescriptor *Meshes;
 	unsigned MeshCount;
-	MaterialDescriptor *Materials;
+	struct MaterialDescriptor *Materials;
 	unsigned MaterialCount;
 	crTextureDescriptor *Textures;
 	unsigned TextureCount;
-	MeshTreeNode *NodeTree;
+	struct MeshTreeNode *NodeTree;
 	unsigned NodeCount;
-	AnimationDescriptor *Animations;
+	struct AnimationDescriptor *Animations;
 	unsigned AnimationCount;
-	} DataFileContentDescriptor;
+	};
 
 BEGIN_C_DECLARATIONS
-void DestroyDataFileContentDescriptor ( DataFileContentDescriptor *Descriptor );
+void DestroyDataFileContentDescriptor ( struct DataFileContentDescriptor *Descriptor );
 END_C_DECLARATIONS

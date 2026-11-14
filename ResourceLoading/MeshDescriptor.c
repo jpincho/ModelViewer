@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <Platform/Logger.h>
 
-void LogMeshDescriptor ( const MeshDescriptor Descriptor, const int Indentation )
+void LogMeshDescriptor ( const struct MeshDescriptor Descriptor, const int Indentation )
 	{
 	LOG_DEBUG ( "%*sMesh '%s'", Indentation, "", Descriptor.MeshName );
 	LOG_DEBUG ( "%*sMaterial - '%s'", Indentation + 1, "", Descriptor.MaterialName );
@@ -11,19 +11,19 @@ void LogMeshDescriptor ( const MeshDescriptor Descriptor, const int Indentation 
 	LOG_DEBUG ( "%*sIndices - %u", Indentation + 1, "", Descriptor.IndexCount );
 	}
 
-void CopyMeshBone ( MeshBone *Output, const MeshBone *Input )
+void CopyMeshBone ( struct MeshBone *Output, const struct MeshBone *Input )
 	{
 	Output->NodeIndex = Input->NodeIndex;
 	Output->BoneName = Input->BoneName ? strdup ( Input->BoneName ) : NULL;
 	math_mat4_copy ( &Output->ModelToBoneMatrix, Input->ModelToBoneMatrix );
 	}
 
-void DestroyMeshBone ( MeshBone *Bone )
+void DestroyMeshBone ( struct MeshBone *Bone )
 	{
 	SAFE_DEL_C ( Bone->BoneName );
 	}
 
-void CopyMeshDescriptor ( MeshDescriptor *Output, const MeshDescriptor *Input )
+void CopyMeshDescriptor ( struct MeshDescriptor *Output, const struct MeshDescriptor *Input )
 	{
 	if ( Input->VertexCount == 0 )
 		{
@@ -100,7 +100,7 @@ void CopyMeshDescriptor ( MeshDescriptor *Output, const MeshDescriptor *Input )
 
 	if ( Input->Bones != NULL )
 		{
-		Output->Bones = malloc ( sizeof ( MeshBone ) * Input->BoneCount );
+		Output->Bones = malloc ( sizeof ( struct MeshBone ) * Input->BoneCount );
 		ASSERT_FAIL ( Output->Bones != NULL );
 		for ( unsigned BoneIndex = 0; BoneIndex < Input->BoneCount; ++BoneIndex )
 			CopyMeshBone ( &Output->Bones[BoneIndex], &Input->Bones[BoneIndex] );
@@ -122,7 +122,7 @@ void CopyMeshDescriptor ( MeshDescriptor *Output, const MeshDescriptor *Input )
 	Output->MaterialName = Input->MaterialName ? strdup ( Input->MaterialName ) : NULL;
 	}
 
-void DestroyMeshDescriptor ( MeshDescriptor *Descriptor )
+void DestroyMeshDescriptor ( struct MeshDescriptor *Descriptor )
 	{
 	SAFE_DEL_C ( Descriptor->Colors );
 	SAFE_DEL_C ( Descriptor->Emissive );
@@ -144,9 +144,9 @@ void DestroyMeshDescriptor ( MeshDescriptor *Descriptor )
 	SAFE_DEL_C ( Descriptor->MaterialName );
 	}
 
-void CopyMeshTreeNode ( MeshTreeNode *Output, const MeshTreeNode *Input )
+void CopyMeshTreeNode ( struct MeshTreeNode *Output, const struct MeshTreeNode *Input )
 	{
-	memcpy ( Output, Input, sizeof ( MeshTreeNode ) );
+	memcpy ( Output, Input, sizeof ( struct MeshTreeNode ) );
 	Output->NodeName = Input->NodeName ? strdup ( Input->NodeName ) : NULL;
 	if ( Input->ChildNodeCount != 0 )
 		{
@@ -162,14 +162,14 @@ void CopyMeshTreeNode ( MeshTreeNode *Output, const MeshTreeNode *Input )
 		}
 	}
 
-void DestroyMeshTreeNode ( MeshTreeNode *node )
+void DestroyMeshTreeNode ( struct MeshTreeNode *node )
 	{
 	SAFE_DEL_C ( node->ChildNodes );
 	SAFE_DEL_C ( node->MeshIndices );
 	SAFE_DEL_C ( node->NodeName );
 	}
 
-void LogMeshTreeNode ( MeshTreeNode *NodeTree, const unsigned NodeIndex, const unsigned Depth )
+void LogMeshTreeNode ( struct MeshTreeNode *NodeTree, const unsigned NodeIndex, const unsigned Depth )
 	{
 	for ( unsigned index = 0; index < Depth; ++index )
 		printf ( "  " );
