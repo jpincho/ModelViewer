@@ -42,34 +42,9 @@ void UpdateRenderingForCamera ( struct CameraData *Camera )
 
 void RenderModel ( void )
 	{
-	/*
-
-
-		//if ( ModelCommands.BoneCount != 0 )
-		//	SetTime ( &Animator, TotalDelta );
-	mat4 *NodeWorldMatrices = NULL;
-	if ( ( RenderingData.ModelRenderData.BoneCount != 0 ) && ( RenderingData.ModelRenderData.OriginalModelData != NULL ) )
+	for ( unsigned Index = 0; Index < RenderingData.ModelRenderData.MeshRenderDataCount; ++Index )
 		{
-		NodeWorldMatrices = alloca ( RenderingData.ModelRenderData.OriginalModelData->NodeCount * sizeof ( mat4 ) );
-		ComputeMeshTreeNodeWorldMatrices ( RenderingData.ModelRenderData.OriginalModelData->NodeTree, RenderingData.ModelRenderData.OriginalModelData->NodeCount, NodeWorldMatrices );
-		}*/
-	for ( unsigned Index = 0; Index < RenderingData.ModelRenderData.CommandCount; ++Index )
-		{
-		/*const unsigned MeshArrayIndex = RenderingData.ModelRenderData.MeshIndices[Index];
-		const struct MeshDescriptor *Mesh = &Descriptor->Meshes[MeshArrayIndex];
-		if ( ( Mesh->BoneCount != 0 ) && ( NodeWorldMatrices != NULL ) )
-			{
-			mat4 MeshWorldInverse;
-			if ( math_mat4_inverse ( &MeshWorldInverse, NodeWorldMatrices[RenderingData.ModelRenderData.NodeIndices[Index]] ) == false )
-				math_mat4_set_identity_matrix ( &MeshWorldInverse );
-			mat4 *MappedPointer = ( mat4* ) crMapShaderBuffer ( RenderingData.ModelRenderData.BoneShaderBuffer, crShaderBufferMapAccessType_WriteOnly );
-			if ( MappedPointer == NULL )
-				return -1;
-			// Each mesh's vertex indices start at bone 0, so this palette replaces the previous draw's.
-			//FillBoneMatricesWithAnimator ( &Animator, MappedPointer, ModelCommands.BoneCount, Mesh->Bones, Mesh->BoneCount, MeshWorldInverse );
-			crUnmapShaderBuffer ( RenderingData.ModelRenderData.BoneShaderBuffer );
-			}*/
-		crRunCommand ( RenderingData.ModelRenderData.Commands[Index] );
+		crRunCommand ( RenderingData.ModelRenderData.MeshRenderData[Index].Command );
 		}
 	}
 

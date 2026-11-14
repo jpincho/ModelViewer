@@ -191,6 +191,7 @@ static ResourceHandle LoadModel ( const char *Filename, const bool AutoFit )
 	{
 	LOG_DEBUG ( "Loading model from '%s'", Filename );
 	ResourceHub_DestroyAll();
+	FreeRenderingData();
 
 	ResourceHandle Handle = LoadModelFileIntoResourceHub ( Filename, "Model" );
 	if ( Handle == ResourceHandle_Invalid )
@@ -202,6 +203,7 @@ static ResourceHandle LoadModel ( const char *Filename, const bool AutoFit )
 	if ( SetModelToRender ( Handle ) == false )
 		{
 		ResourceHub_DestroyAll();
+		FreeRenderingData();
 		return ResourceHandle_Invalid;
 		}
 

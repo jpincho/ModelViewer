@@ -430,6 +430,7 @@ bool ResourceHub_BuildResource ( const ResourceHandle EntryHandle )
 				CopyMeshTreeNode ( &EntryData->ModelResource.Data.NodeTree[Index], &EntryData->ModelResource.Descriptor.Nodes[Index] );
 				}
 			EntryData->ModelResource.Data.NodeCount = EntryData->ModelResource.Descriptor.NodeCount;
+			EntryData->ModelResource.Data.AABBox = EntryData->ModelResource.Descriptor.AABBox;
 			EntryData->Built = true;
 			return true;
 			}

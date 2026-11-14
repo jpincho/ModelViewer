@@ -17,11 +17,11 @@ bool BuildModelRenderData ( struct ModelRenderData *RenderData, const struct Mod
 		return false;
 
 	// Ok, now allocate all the render commands to account for these meshes
-	RenderData->CommandCount = TotalMeshCount;
-	RenderData->Commands = calloc ( TotalMeshCount, sizeof ( crRenderCommand ) );
+	RenderData->MeshRenderDataCount = TotalMeshCount;
+	RenderData->MeshRenderData = calloc ( TotalMeshCount, sizeof ( struct MeshRenderData ) );
 	RenderData->NodeIndices = calloc ( TotalMeshCount, sizeof ( unsigned ) );
 	RenderData->MeshIndices = calloc ( TotalMeshCount, sizeof ( unsigned ) );
-	if ( ( RenderData->Commands == NULL ) || ( RenderData->NodeIndices == NULL ) || ( RenderData->MeshIndices == NULL ) )
+	if ( ( RenderData->MeshRenderData == NULL ) || ( RenderData->NodeIndices == NULL ) || ( RenderData->MeshIndices == NULL ) )
 		{
 		DestroyModelRenderData ( RenderData );
 		return false;
@@ -46,10 +46,10 @@ bool BuildModelRenderData ( struct ModelRenderData *RenderData, const struct Mod
 		}
 
 	// These should match, at this point
-	assert ( RenderData->CommandCount == CurrentPosition );
+	assert ( RenderData->MeshRenderDataCount == CurrentPosition );
 
 	// Generate shaders for every mesh
-	for ( unsigned Index = 0; Index < RenderData->CommandCount; ++Index )
+	for ( unsigned Index = 0; Index < RenderData->MeshRenderDataCount; ++Index )
 		{
 		scShaderDefinition ShaderDefs = BuildShaderDefinitionForMeshData ( InputModelData->Meshes + RenderData->MeshIndices[Index] );
 		ShaderDefs.LightModel = scLightModel_Off;
@@ -61,8 +61,8 @@ bool BuildModelRenderData ( struct ModelRenderData *RenderData, const struct Mod
 			}
 
 		RenderData->NodeIndices[Index] = RenderData->NodeIndices[Index];
-		crSetRenderCommandShader ( RenderData->Commands + Index, Shader );
-		if ( BuildRenderCommandForMeshData ( RenderData->Commands + Index, InputModelData->Meshes + RenderData->MeshIndices[Index], Shader ) == false )
+		crSetRenderCommandShader ( &RenderData->MeshRenderData[Index].Command, Shader );
+		if ( BuildRenderCommandForMeshData ( &RenderData->MeshRenderData[Index].Command, InputModelData->Meshes + RenderData->MeshIndices[Index], Shader ) == false )
 			{
 			LOG_ERROR ( "Unable to build render command for mesh %u", RenderData->MeshIndices[Index] );
 			goto OnError;
@@ -98,10 +98,10 @@ bool BuildModelRenderData ( struct ModelRenderData *RenderData, const struct Mod
 		crUnmapShaderBuffer ( RenderData->BoneShaderBuffer );
 
 		// Assign the bone matrices buffer to all render commands
-		for ( unsigned Index = 0; Index < RenderData->CommandCount; ++Index )
+		for ( unsigned Index = 0; Index < RenderData->MeshRenderDataCount; ++Index )
 			{
-			crShaderHandle Shader = RenderData->Commands[Index].Shader;
-			crSetRenderCommandUniformBlockValue ( RenderData->Commands + Index, crGetShaderUniformHandle ( Shader, "u_Bone" ), RenderData->BoneShaderBuffer );
+			crShaderHandle Shader = RenderData->MeshRenderData[Index].Command.Shader;
+			crSetRenderCommandUniformBlockValue ( &RenderData->MeshRenderData[Index].Command, crGetShaderUniformHandle ( Shader, "u_Bone" ), RenderData->BoneShaderBuffer );
 			}
 		}
 	return true;
@@ -113,6 +113,9 @@ OnError:
 
 void UpdateModelRenderData ( const struct ModelRenderData *RenderData, struct BaseTransform *Transform, const float Scale, const mat4 ViewMatrix, const mat4 ProjectionMatrix )
 	{
+	if ( ( RenderData->OriginalModelData == NULL ) || ( RenderData->MeshRenderDataCount == 0 ) )
+		return;
+
 	mat4 GlobalMatrix;
 	GetTransformationMatrix ( Transform, &GlobalMatrix );
 
@@ -124,13 +127,13 @@ void UpdateModelRenderData ( const struct ModelRenderData *RenderData, struct Ba
 	mat4 *NodeWorldMatrices = alloca ( RenderData->OriginalModelData->NodeCount * sizeof ( mat4 ) );
 	ComputeMeshTreeNodeWorldMatrices ( RenderData->OriginalModelData->NodeTree, RenderData->OriginalModelData->NodeCount, NodeWorldMatrices );
 
-	for ( unsigned Index = 0; Index < RenderData->CommandCount; ++Index )
+	for ( unsigned Index = 0; Index < RenderData->MeshRenderDataCount; ++Index )
 		{
 		const unsigned NodeIndex = RenderData->NodeIndices[Index];
 		mat4 ModelMatrix;
 		math_mat4_multiply ( &ModelMatrix, ScaledGlobalMatrix, NodeWorldMatrices[NodeIndex] );
 
-		crRenderCommand *Command = &RenderData->Commands[Index];
+		crRenderCommand *Command = &RenderData->MeshRenderData[Index].Command;
 		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ModelMatrix" ), ModelMatrix );
 		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ViewMatrix" ), ViewMatrix );
 		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ProjectionMatrix" ), ProjectionMatrix );
@@ -146,19 +149,17 @@ void UpdateModelRenderData ( const struct ModelRenderData *RenderData, struct Ba
 
 void DestroyModelRenderData ( struct ModelRenderData *RenderData )
 	{
-	if ( RenderData->Commands != NULL )
+	if ( RenderData->MeshRenderData != NULL )
 		{
-		for ( unsigned Index = 0; Index < RenderData->CommandCount; ++Index )
+		for ( unsigned Index = 0; Index < RenderData->MeshRenderDataCount; ++Index )
 			{
-			SAFE_DELETE_SHADER ( RenderData->Commands[Index].Shader );
-			crDestroyRenderCommand ( &RenderData->Commands[Index] );
+			SAFE_DELETE_SHADER ( RenderData->MeshRenderData[Index].Command.Shader );
+			crDestroyRenderCommand ( &RenderData->MeshRenderData[Index].Command );
 			}
 		}
-	SAFE_DEL_C ( RenderData->Commands );
+	SAFE_DEL_C ( RenderData->MeshRenderData );
 	SAFE_DEL_C ( RenderData->NodeIndices );
 	SAFE_DEL_C ( RenderData->MeshIndices );
-	SAFE_DELETE_SHADER_BUFFER ( RenderData->BoneShaderBuffer );
-	RenderData->BoneCount = 0;
-	RenderData->CommandCount = 0;
+	RenderData->MeshRenderDataCount = 0;
 	RenderData->OriginalModelData = NULL;
 	}
