@@ -93,7 +93,7 @@ static vec3 GetInterpolatedScale ( const NodeTrack AnimationTrack, const float T
 	return FinalScale;
 	}
 
-static void ApplyAnimationToNode ( AnimatorData *Animator, const float Ticks, const unsigned NodeIndex, const mat4 ParentTransform )
+static void ApplyAnimationToNode ( struct AnimatorData *Animator, const float Ticks, const unsigned NodeIndex, const mat4 ParentTransform )
 	{
 	mat4 CurrentNodeTransform;
 
@@ -140,7 +140,7 @@ bool IsAnimationCompatibleWithNodeTree ( const struct AnimationDescriptor *Anima
 	return MatchingNodes > 0;
 	}
 
-bool SetupAnimator ( AnimatorData *Animator, const struct AnimationDescriptor *Animation, const struct MeshTreeNode *NodeTree, const unsigned NodeCount )
+bool SetupAnimator ( struct AnimatorData *Animator, const struct AnimationDescriptor *Animation, const struct MeshTreeNode *NodeTree, const unsigned NodeCount )
 	{
 	if ( IsAnimationCompatibleWithNodeTree ( Animation, NodeTree, NodeCount ) == false )
 		{
@@ -170,20 +170,20 @@ bool SetupAnimator ( AnimatorData *Animator, const struct AnimationDescriptor *A
 	return true;
 	}
 
-void SetTime ( AnimatorData *Animator, const float Time )
+void SetTime ( struct AnimatorData *Animator, const float Time )
 	{
 	Animator->CurrentTime = fmod ( Time, Animator->InputData.Animation->Duration );
 	ApplyAnimationToNode ( Animator, fmod ( Time, Animator->InputData.Animation->Duration ), 0, MATH_MAT4_IDENTITY );
 	}
 
-void FreeAnimator ( AnimatorData *Animator )
+void FreeAnimator ( struct AnimatorData *Animator )
 	{
 	SAFE_DEL_C ( Animator->OutputData.NodeMatrices );
 	SAFE_DEL_C ( Animator->OutputData.NodeToTrack );
-	memset ( Animator, 0, sizeof ( AnimatorData ) );
+	memset ( Animator, 0, sizeof ( struct AnimatorData ) );
 	}
 
-unsigned FillBoneMatricesWithAnimator ( const AnimatorData *Animator, mat4 *BoneMatrices, const unsigned BoneMatrixCount, const struct MeshBone *Bones, const unsigned BoneCount, const mat4 MeshWorld )
+unsigned FillBoneMatricesWithAnimator ( const struct AnimatorData *Animator, mat4 *BoneMatrices, const unsigned BoneMatrixCount, const struct MeshBone *Bones, const unsigned BoneCount, const mat4 MeshWorld )
 	{
 	for ( unsigned Index = 0; Index < BoneMatrixCount; ++Index )
 		math_mat4_set_identity_matrix ( BoneMatrices + Index );

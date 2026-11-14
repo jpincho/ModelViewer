@@ -1,8 +1,9 @@
 #pragma once
 #include <C_CrossRenderer/CrossRenderer.h>
+#include "Camera.h"
 #include "ResourceLoading/ModelData.h"
 #include "BaseTransform.h"
-
+#include "Animator.h"
 
 struct MeshRenderData
 	{
@@ -19,9 +20,16 @@ struct ModelRenderData
 	const struct ModelData *OriginalModelData;
 	unsigned *NodeIndices;
 	unsigned *MeshIndices;
+	struct AnimatorData Animator;
+	struct AnimationDescriptor *OriginalAnimationDescriptor;
+	mat4 InstanceMatrix;
 	};
 
 bool BuildModelRenderData ( struct ModelRenderData *RenderData, const struct ModelData *InputModelData );
-void UpdateModelRenderData ( const struct ModelRenderData *RenderData, struct BaseTransform *Transform, const float Scale, const mat4 ViewMatrix, const mat4 ProjectionMatrix );
+void UpdateModelRenderDataWithTransform ( struct ModelRenderData *RenderData, struct BaseTransform *Transform, const float Scale );
+void UpdateModelRenderDataWithCamera ( const struct ModelRenderData *RenderData, struct CameraData *Camera );
+bool SetModelRenderDataAnimation ( struct ModelRenderData *RenderData, struct AnimationDescriptor *Animation );
+void UpdateModelRenderDataWithAnimationTime ( struct ModelRenderData *RenderData, const double Time );
 void DestroyModelRenderData ( struct ModelRenderData *RenderData );
+void RenderModel ( const struct ModelRenderData *RenderData );
 

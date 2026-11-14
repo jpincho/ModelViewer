@@ -6,7 +6,7 @@
 
 bool BuildModelRenderData ( struct ModelRenderData *RenderData, const struct ModelData *InputModelData )
 	{
-	memset ( RenderData, 0, sizeof ( struct ModelRenderData ) );
+	DestroyModelRenderData ( RenderData );
 
 	// first, count how many meshes I have to draw ( even if there are multiple instances of the same )
 	unsigned TotalMeshCount = 0;
@@ -99,6 +99,7 @@ bool BuildModelRenderData ( struct ModelRenderData *RenderData, const struct Mod
 		}
 
 	RenderData->OriginalModelData = InputModelData;
+	math_mat4_set_identity_matrix ( &RenderData->InstanceMatrix );
 	return true;
 
 OnError:
@@ -106,9 +107,55 @@ OnError:
 	return false;
 	}
 
-void UpdateModelRenderData ( const struct ModelRenderData *RenderData, struct BaseTransform *Transform, const float Scale, const mat4 ViewMatrix, const mat4 ProjectionMatrix )
+static bool MeshIsSkinned ( const struct MeshRenderData *MeshData )
+	{
+	return ( MeshData->BoneCount != 0 ) && ( MeshData->OriginalMeshData != NULL ) && ( MeshData->OriginalMeshData->Bones != NULL );
+	}
+
+static void WriteCommandModelMatrix ( crRenderCommand *Command, const mat4 ModelMatrix )
+	{
+	crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ModelMatrix" ), ModelMatrix );
+
+	mat3 InvertedModelMatrix;
+	math_mat3_from_mat4 ( &InvertedModelMatrix, ModelMatrix );
+	math_mat3_invert ( &InvertedModelMatrix, InvertedModelMatrix );
+	mat3 NormalMatrix;
+	math_mat3_transpose ( &NormalMatrix, InvertedModelMatrix );
+	crSetRenderCommandUniformMatrix3Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_NormalMatrix" ), NormalMatrix );
+	}
+
+// Skinned draws stay on the bind-pose node. The bone palette already contains the animated bones.
+// Unskinned draws follow the animated node world, which includes animated ancestors.
+static void UpdateCommandModelMatrices ( struct ModelRenderData *RenderData )
+	{
+	if ( ( RenderData->OriginalModelData == NULL ) || ( RenderData->MeshRenderDataCount == 0 ) || ( RenderData->OriginalModelData->NodeCount == 0 ) )
+		return;
+
+	mat4 *BindWorldMatrices = alloca ( RenderData->OriginalModelData->NodeCount * sizeof ( mat4 ) );
+	ComputeMeshTreeNodeWorldMatrices ( RenderData->OriginalModelData->NodeTree, RenderData->OriginalModelData->NodeCount, BindWorldMatrices );
+
+	const bool UseAnimatedNodes = RenderData->Animator.OutputData.NodeMatrices != NULL;
+	for ( unsigned Index = 0; Index < RenderData->MeshRenderDataCount; ++Index )
+		{
+		const unsigned NodeIndex = RenderData->NodeIndices[Index];
+		if ( NodeIndex >= RenderData->OriginalModelData->NodeCount )
+			continue;
+
+		const mat4 *NodeWorld = &BindWorldMatrices[NodeIndex];
+		if ( ( UseAnimatedNodes ) && ( MeshIsSkinned ( &RenderData->MeshRenderData[Index] ) == false ) && ( NodeIndex < RenderData->Animator.InputData.NodeCount ) )
+			NodeWorld = &RenderData->Animator.OutputData.NodeMatrices[NodeIndex];
+
+		mat4 ModelMatrix;
+		math_mat4_multiply ( &ModelMatrix, RenderData->InstanceMatrix, *NodeWorld );
+		WriteCommandModelMatrix ( &RenderData->MeshRenderData[Index].Command, ModelMatrix );
+		}
+	}
+
+void UpdateModelRenderDataWithTransform ( struct ModelRenderData *RenderData, struct BaseTransform *Transform, const float Scale )
 	{
 	if ( ( RenderData->OriginalModelData == NULL ) || ( RenderData->MeshRenderDataCount == 0 ) )
+		return;
+	if ( Transform == NULL )
 		return;
 
 	mat4 GlobalMatrix;
@@ -116,30 +163,74 @@ void UpdateModelRenderData ( const struct ModelRenderData *RenderData, struct Ba
 
 	mat4 ScaleMatrix;
 	math_mat4_set_scale_matrix ( &ScaleMatrix, ( vec3 ) { Scale, Scale, Scale } );
-	mat4 ScaledGlobalMatrix;
-	math_mat4_multiply ( &ScaledGlobalMatrix, ScaleMatrix, GlobalMatrix );
+	math_mat4_multiply ( &RenderData->InstanceMatrix, ScaleMatrix, GlobalMatrix );
+	UpdateCommandModelMatrices ( RenderData );
+	}
 
-	mat4 *NodeWorldMatrices = alloca ( RenderData->OriginalModelData->NodeCount * sizeof ( mat4 ) );
-	ComputeMeshTreeNodeWorldMatrices ( RenderData->OriginalModelData->NodeTree, RenderData->OriginalModelData->NodeCount, NodeWorldMatrices );
+void UpdateModelRenderDataWithCamera ( const struct ModelRenderData *RenderData, struct CameraData *Camera )
+	{
+	if ( ( RenderData->OriginalModelData == NULL ) || ( RenderData->MeshRenderDataCount == 0 ) )
+		return;
+	if ( Camera == NULL )
+		return;
 
+	UpdateCameraMatrices ( Camera );
 	for ( unsigned Index = 0; Index < RenderData->MeshRenderDataCount; ++Index )
 		{
 		const unsigned NodeIndex = RenderData->NodeIndices[Index];
-		mat4 ModelMatrix;
-		math_mat4_multiply ( &ModelMatrix, ScaledGlobalMatrix, NodeWorldMatrices[NodeIndex] );
-
 		crRenderCommand *Command = &RenderData->MeshRenderData[Index].Command;
-		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ModelMatrix" ), ModelMatrix );
-		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ViewMatrix" ), ViewMatrix );
-		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ProjectionMatrix" ), ProjectionMatrix );
-
-		mat3 InvertedModelMatrix;
-		math_mat3_from_mat4 ( &InvertedModelMatrix, ModelMatrix );
-		math_mat3_invert ( &InvertedModelMatrix, InvertedModelMatrix );
-		mat3 NormalMatrix;
-		math_mat3_transpose ( &NormalMatrix, InvertedModelMatrix );
-		crSetRenderCommandUniformMatrix3Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_NormalMatrix" ), NormalMatrix );
+		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ViewMatrix" ), Camera->CachedValues.ViewMatrix );
+		crSetRenderCommandUniformMatrix4Value ( Command, crGetShaderUniformHandle ( Command->Shader, "u_ProjectionMatrix" ), Camera->CachedValues.ProjectionMatrix );
 		}
+	}
+
+bool SetModelRenderDataAnimation ( struct ModelRenderData *RenderData, struct AnimationDescriptor *Animation )
+	{
+	if ( SetupAnimator ( &RenderData->Animator, Animation, RenderData->OriginalModelData->NodeTree, RenderData->OriginalModelData->NodeCount ) == false )
+		return false;
+	RenderData->OriginalAnimationDescriptor = Animation;
+	SetTime ( &RenderData->Animator, 0.0f );
+	UpdateCommandModelMatrices ( RenderData );
+	return true;
+	}
+
+void UpdateModelRenderDataWithAnimationTime ( struct ModelRenderData *RenderData, const double Time )
+	{
+	if ( ( RenderData->Animator.InputData.Animation == NULL ) || ( RenderData->OriginalModelData == NULL ) )
+		return;
+	SetTime ( &RenderData->Animator, Time );
+
+	const struct ModelData *ModelData = RenderData->OriginalModelData;
+	if ( ( ModelData == NULL ) || ( ModelData->NodeCount == 0 ) )
+		return;
+
+	mat4 *BindWorldMatrices = alloca ( ModelData->NodeCount * sizeof ( mat4 ) );
+	ComputeMeshTreeNodeWorldMatrices ( ModelData->NodeTree, ModelData->NodeCount, BindWorldMatrices );
+
+	for ( unsigned CommandIndex = 0; CommandIndex < RenderData->MeshRenderDataCount; ++CommandIndex )
+		{
+		struct MeshRenderData *MeshData = &RenderData->MeshRenderData[CommandIndex];
+		if ( ( MeshData->BoneCount == 0 ) || ( MeshData->OriginalMeshData->Bones == NULL ) )
+			continue;
+
+		const unsigned NodeIndex = RenderData->NodeIndices[CommandIndex];
+		if ( NodeIndex >= ModelData->NodeCount )
+			continue;
+
+		mat4 *BoneMatrices = crMapShaderBuffer ( MeshData->BoneShaderBuffer, crShaderBufferMapAccessType_WriteOnly );
+		if ( BoneMatrices == NULL )
+			{
+			LOG_ERROR ( "Failed to map bone shader buffer for writing" );
+			continue;
+			}
+		FillBoneMatricesWithAnimator ( &RenderData->Animator, BoneMatrices, MeshData->BoneCount,
+		                               MeshData->OriginalMeshData->Bones, MeshData->OriginalMeshData->BoneCount,
+		                               BindWorldMatrices[NodeIndex] );
+
+		crUnmapShaderBuffer ( MeshData->BoneShaderBuffer );
+		}
+
+	UpdateCommandModelMatrices ( RenderData );
 	}
 
 void DestroyModelRenderData ( struct ModelRenderData *RenderData )
@@ -156,6 +247,14 @@ void DestroyModelRenderData ( struct ModelRenderData *RenderData )
 	SAFE_DEL_C ( RenderData->MeshRenderData );
 	SAFE_DEL_C ( RenderData->NodeIndices );
 	SAFE_DEL_C ( RenderData->MeshIndices );
-	RenderData->MeshRenderDataCount = 0;
-	RenderData->OriginalModelData = NULL;
+	FreeAnimator ( &RenderData->Animator );
+	memset ( RenderData, 0, sizeof ( struct ModelRenderData ) );
+	}
+
+void RenderModel ( const struct ModelRenderData *RenderData )
+	{
+	for ( unsigned Index = 0; Index < RenderData->MeshRenderDataCount; ++Index )
+		{
+		crRunCommand ( RenderData->MeshRenderData[Index].Command );
+		}
 	}
