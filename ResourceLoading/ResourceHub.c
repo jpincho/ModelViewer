@@ -70,9 +70,15 @@ static const char *Stringify_ResourceHub_Type ( const ResourceHub_Type Value )
 
 ResourceHandle ResourceHub_CreateEntry ( const ResourceHub_Type Type, const char *Name )
 	{
+	ResourceEntry *ExistingEntry = ResourceHub_FindResource ( Type, Name );
+	if ( ExistingEntry != NULL )
+		{
+		LOG_WARNING ( "Resource '%s' type '%s' already exists", Name, Stringify_ResourceHub_Type ( Type ) );
+		return ResourceHandle_Invalid;
+		}
 	ResourceEntry *NewEntry = calloc ( 1, sizeof ( ResourceEntry ) );
 	if ( !NewEntry )
-		return NULL;
+		return ResourceHandle_Invalid;
 	NewEntry->Type = Type;
 	NewEntry->Name = strdup ( Name );
 	LOG_DEBUG ( "Added resource '%s' type '%s'", Name, Stringify_ResourceHub_Type ( Type ) );
