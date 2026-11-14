@@ -250,6 +250,13 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 		ResourceHub_SetMeshDescriptor ( NewResource, &ModelFileData->Meshes[Index] );
 		}
 
+	for ( unsigned Index = 0; Index < ModelFileData->AnimationCount; ++Index )
+		{
+		ResourceHandle NewResource = ResourceHub_CreateEntry ( ResourceType_Animation, ModelFileData->Animations[Index].AnimationName );
+		assert ( NewResource != ResourceHandle_Invalid );
+		ResourceHub_SetAnimationDescriptor ( NewResource, &ModelFileData->Animations[Index] );
+		}
+
 	struct ModelDescriptor NewModelDescriptor = { 0 };
 	NewModelDescriptor.MeshCount = ModelFileData->MeshCount;
 	NewModelDescriptor.Meshes = ModelFileData->Meshes;

@@ -1,5 +1,6 @@
 #pragma once
 #include <C_CrossRenderer/CrossRenderer.h>
+#include "AnimationDescriptor.h"
 #include "MaterialDescriptor.h"
 #include "MaterialData.h"
 #include "MeshDescriptor.h"
@@ -16,6 +17,7 @@ typedef enum
 	ResourceType_Mesh,
 	ResourceType_Model,
 	ResourceType_Shader,
+	ResourceType_Animation
 	} ResourceHub_Type;
 
 typedef void *ResourceHandle;
@@ -40,6 +42,8 @@ bool ResourceHub_SetShaderDefinition ( const ResourceHandle EntryHandle, const s
 bool ResourceHub_SetShaderCode ( const ResourceHandle EntryHandle, const crShaderCode Code );
 crShaderCode *ResourceHub_GetShaderCode ( const ResourceHandle EntryHandle );
 crShaderHandle ResourceHub_GetShaderHandle ( const ResourceHandle EntryHandle );
+bool ResourceHub_SetAnimationDescriptor ( const ResourceHandle EntryHandle, const struct AnimationDescriptor *Descriptor );
+struct AnimationDescriptor *ResourceHub_GetAnimationDescriptor ( const ResourceHandle EntryHandle );
 
 ResourceHandle ResourceHub_FindResource ( const ResourceHub_Type Type, const char *Name );
 bool ResourceHub_BuildResource ( const ResourceHandle EntryHandle );

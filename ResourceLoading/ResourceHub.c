@@ -3,7 +3,7 @@
 #include <Platform/PointerList.h>
 #include <string.h>
 
-#define TotalResourceTypes 5
+#define TotalResourceTypes 6
 
 typedef struct ResourceEntry
 	{
@@ -36,6 +36,10 @@ typedef struct ResourceEntry
 			crShaderCode ShaderCode;
 			bool UseCreator;
 			} ShaderResource;
+		struct
+			{
+			struct AnimationDescriptor Descriptor;
+			} AnimationResource;
 		};
 	ResourceHub_Type Type;
 	char *Name;
@@ -63,6 +67,7 @@ static const char *Stringify_ResourceHub_Type ( const ResourceHub_Type Value )
 			STRINGIFY ( Mesh );
 			STRINGIFY ( Model );
 			STRINGIFY ( Shader );
+			STRINGIFY ( Animation );
 #undef STRINGIFY
 		}
 	return "Unhandled enum value";
@@ -70,15 +75,15 @@ static const char *Stringify_ResourceHub_Type ( const ResourceHub_Type Value )
 
 ResourceHandle ResourceHub_CreateEntry ( const ResourceHub_Type Type, const char *Name )
 	{
-	ResourceEntry *ExistingEntry = ResourceHub_FindResource ( Type, Name );
-	if ( ExistingEntry != NULL )
+	ResourceHandle ExistingEntry = ResourceHub_FindResource ( Type, Name );
+	if ( ExistingEntry != ResourceHandle_Invalid )
 		{
-		LOG_WARNING ( "Resource '%s' type '%s' already exists", Name, Stringify_ResourceHub_Type ( Type ) );
+		LOG_WARNING ( "Resource '%s' of type '%s' already exists!", Name, Stringify_ResourceHub_Type ( Type ) );
 		return ResourceHandle_Invalid;
 		}
 	ResourceEntry *NewEntry = calloc ( 1, sizeof ( ResourceEntry ) );
 	if ( !NewEntry )
-		return ResourceHandle_Invalid;
+		return NULL;
 	NewEntry->Type = Type;
 	NewEntry->Name = strdup ( Name );
 	LOG_DEBUG ( "Added resource '%s' type '%s'", Name, Stringify_ResourceHub_Type ( Type ) );
@@ -126,6 +131,11 @@ bool ResourceHub_DestroyEntry ( const ResourceHandle EntryHandle )
 			SAFE_DEL_C ( EntryData->ShaderResource.ShaderCode.GeometryShader );
 			if ( EntryData->ShaderResource.ShaderHandle != crShaderHandle_Invalid )
 				crDeleteShader ( EntryData->ShaderResource.ShaderHandle );
+			break;
+			}
+		case ResourceType_Animation:
+			{
+			DestroyAnimationDescriptor ( &EntryData->AnimationResource.Descriptor );
 			break;
 			}
 		}
@@ -311,6 +321,25 @@ crShaderHandle ResourceHub_GetShaderHandle ( const ResourceHandle EntryHandle )
 	if ( ResourceHub_BuildResource ( EntryHandle ) == false )
 		return NULL;
 	return EntryData->ShaderResource.ShaderHandle;
+	}
+
+bool ResourceHub_SetAnimationDescriptor ( const ResourceHandle EntryHandle, const struct AnimationDescriptor *Descriptor )
+	{
+	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Animation ) )
+		return false;
+	DestroyAnimationDescriptor ( &EntryData->AnimationResource.Descriptor );
+	CopyAnimationDescriptor ( &EntryData->AnimationResource.Descriptor, Descriptor );
+	EntryData->Built = false;
+	return true;
+	}
+
+struct AnimationDescriptor *ResourceHub_GetAnimationDescriptor ( const ResourceHandle EntryHandle )
+	{
+	ResourceEntry *EntryData = GetResourceEntryFromHandle ( EntryHandle );
+	if ( ( EntryData == NULL ) || ( EntryData->Type != ResourceType_Animation ) )
+		return NULL;
+	return &EntryData->AnimationResource.Descriptor;
 	}
 
 ResourceHandle ResourceHub_FindResource ( const ResourceHub_Type Type, const char *Name )

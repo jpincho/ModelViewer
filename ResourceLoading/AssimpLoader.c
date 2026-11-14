@@ -305,7 +305,7 @@ static bool LoadAssimpMesh ( const struct aiMesh *AssimpMesh, struct MeshDescrip
 
 	//NewMeshDescriptor.Primitive = Translate((aiPrimitiveType)AssimpMesh->mPrimitiveTypes);
 
-	if ( AssimpMesh->mPrimitiveTypes != aiPrimitiveType_TRIANGLE )
+	if (( AssimpMesh->mPrimitiveTypes & aiPrimitiveType_TRIANGLE ) == 0 )
 		{
 		LOG_WARNING ( "Mesh '%s' has non-triangle primitives, ignoring", AssimpMesh->mName.data );
 		return false;
