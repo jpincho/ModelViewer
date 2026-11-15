@@ -42,6 +42,8 @@ static vec3 GetInterpolatedPosition ( const NodeTrack AnimationTrack, const floa
 
 	// Interpolate between this value and the next
 	double TimeBetweenKeys = AnimationTrack.Positions[NextKeyIndex].Time - AnimationTrack.Positions[NextKeyIndex - 1].Time;
+	if ( TimeBetweenKeys <= 0.0 )
+		return AnimationTrack.Positions[NextKeyIndex - 1].Vec3Value;
 	double Factor = ( TimeStamp - AnimationTrack.Positions[NextKeyIndex - 1].Time ) / TimeBetweenKeys;
 
 	vec3 FinalPosition;
@@ -64,6 +66,8 @@ static quat GetInterpolatedRotation ( const NodeTrack AnimationTrack, const floa
 
 	// Interpolate between this value and the next
 	double TimeBetweenKeys = AnimationTrack.Rotations[NextKeyIndex].Time - AnimationTrack.Rotations[NextKeyIndex - 1].Time;
+	if ( TimeBetweenKeys <= 0.0 )
+		return AnimationTrack.Rotations[NextKeyIndex - 1].QuatValue;
 	double Factor = ( TimeStamp - AnimationTrack.Rotations[NextKeyIndex - 1].Time ) / TimeBetweenKeys;
 
 	quat FinalRotation;
@@ -86,6 +90,8 @@ static vec3 GetInterpolatedScale ( const NodeTrack AnimationTrack, const float T
 
 	// Interpolate between this value and the next
 	double TimeBetweenKeys = AnimationTrack.Scales[NextKeyIndex].Time - AnimationTrack.Scales[NextKeyIndex - 1].Time;
+	if ( TimeBetweenKeys <= 0.0 )
+		return AnimationTrack.Scales[NextKeyIndex - 1].Vec3Value;
 	double Factor = ( TimeStamp - AnimationTrack.Scales[NextKeyIndex - 1].Time ) / TimeBetweenKeys;
 
 	vec3 FinalScale;
@@ -147,8 +153,7 @@ bool SetupAnimator ( struct AnimatorData *Animator, const struct AnimationDescri
 		LOG_ERROR ( "Animation '%s' has no nodes in common with node tree", Animation->AnimationName );
 		return false;
 		}
-	SAFE_DEL_C ( Animator->OutputData.NodeMatrices );
-	SAFE_DEL_C ( Animator->OutputData.NodeToTrack );
+	FreeAnimator ( Animator );
 
 	Animator->CurrentTime = 0.0f;
 	Animator->InputData.NodeTree = NodeTree;
@@ -172,8 +177,14 @@ bool SetupAnimator ( struct AnimatorData *Animator, const struct AnimationDescri
 
 void SetTime ( struct AnimatorData *Animator, const float Time )
 	{
-	Animator->CurrentTime = fmod ( Time, Animator->InputData.Animation->Duration );
-	ApplyAnimationToNode ( Animator, fmod ( Time, Animator->InputData.Animation->Duration ), 0, MATH_MAT4_IDENTITY );
+	if ( Animator->InputData.Animation->Duration < 0.0f )
+		return;
+	else if ( Animator->InputData.Animation->Duration == 0.0f )
+		Animator->CurrentTime = 0.0f;
+	else
+		Animator->CurrentTime = fmod ( Time, Animator->InputData.Animation->Duration );
+		
+	ApplyAnimationToNode ( Animator, Animator->CurrentTime, 0, MATH_MAT4_IDENTITY );
 	}
 
 void FreeAnimator ( struct AnimatorData *Animator )

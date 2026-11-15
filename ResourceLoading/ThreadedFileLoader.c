@@ -79,8 +79,8 @@ static int LoadAssimpFileThreadFunction ( void *Param )
 	mtx_unlock ( &ResourceAccessMutex );
 
 	int Result = -1;
-	LOG_DEBUG ( "Loading '%s'", DataFiles.Data[Index].Descriptor->Filename );
-	if ( LoadFileWithAssimp ( DataFiles.Data[Index].Descriptor->Filename, DataFiles.Data[Index].Descriptor ) == true )
+	LOG_DEBUG ( "Loading '%s'", Descriptor->Filename );
+	if ( LoadFileWithAssimp ( Descriptor->Filename, Descriptor ) == true )
 		{
 		mtx_lock ( &ResourceAccessMutex );
 		DataFiles.Data[Index].State = HUD_STATE_LOADED_OK;
@@ -95,7 +95,7 @@ static int LoadAssimpFileThreadFunction ( void *Param )
 		Result = -1;
 		}
 	free ( ThreadData );
-	LOG_DEBUG ( "Finished loading '%s'. Result %d", DataFiles.Data[Index].Descriptor->Filename, Result );
+	LOG_DEBUG ( "Finished loading '%s'. Result %d", Descriptor->Filename, Result );
 	return Result;
 	}
 
@@ -125,13 +125,13 @@ static int LoadTextureFileThreadFunction ( void *Param )
 	mtx_unlock ( &ResourceAccessMutex );
 
 	int Result = -1;
-	LOG_DEBUG ( "Loading '%s'", DataFiles.Data[Index].Descriptor->Filename );
+	LOG_DEBUG ( "Loading '%s'", Descriptor->Filename );
 	crTextureDescriptor *NewDescriptor = calloc ( 1, sizeof ( crTextureDescriptor ) );
-	if ( ( NewDescriptor != NULL ) && ( crLoadTextureDescriptorFromFile ( DataFiles.Data[Index].Descriptor->Filename, true, NewDescriptor ) == true ) )
+	if ( ( NewDescriptor != NULL ) && ( crLoadTextureDescriptorFromFile ( Descriptor->Filename, true, NewDescriptor ) == true ) )
 		{
 		mtx_lock ( &ResourceAccessMutex );
-		DataFiles.Data[Index].Descriptor->Textures = NewDescriptor;
-		DataFiles.Data[Index].Descriptor->TextureCount = 1;
+		Descriptor->Textures = NewDescriptor;
+		Descriptor->TextureCount = 1;
 		DataFiles.Data[Index].State = HUD_STATE_LOADED_OK;
 		mtx_unlock ( &ResourceAccessMutex );
 		Result = 0;
@@ -145,7 +145,7 @@ static int LoadTextureFileThreadFunction ( void *Param )
 		Result = -1;
 		}
 	free ( ThreadData );
-	LOG_DEBUG ( "Finished loading '%s'. Result %d", DataFiles.Data[Index].Descriptor->Filename, Result );
+	LOG_DEBUG ( "Finished loading '%s'. Result %d", Descriptor->Filename, Result );
 	return Result;
 	}
 

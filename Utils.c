@@ -225,6 +225,7 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 				assert ( NewResource != ResourceHandle_Invalid );
 				ResourceHub_SetTextureDescriptor ( NewResource, &TextureFileData->Textures[TextureIndex] );
 				}
+			ThreadedFileLoader_UnloadResourceFile ( FileIndex );
 			}
 		}
 
