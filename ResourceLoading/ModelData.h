@@ -12,6 +12,8 @@ struct ModelData
 	unsigned MeshCount;
 
 	struct AABB AABBox;
+
+	mat4 *MeshNodeTreeWorldMatrices;
 	};
 
 void DestroyModelData ( struct ModelData *Data );

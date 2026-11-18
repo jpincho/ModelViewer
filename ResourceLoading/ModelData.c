@@ -11,5 +11,6 @@ void DestroyModelData ( struct ModelData *Data )
 			DestroyMeshTreeNode ( &Data->NodeTree[Index] );
 		}
 	SAFE_DEL_C ( Data->NodeTree );
+	SAFE_DEL_C ( Data->MeshNodeTreeWorldMatrices );
 	Data->NodeCount = 0;
 	}

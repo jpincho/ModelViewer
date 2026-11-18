@@ -3,13 +3,13 @@
 #include <Platform/Logger.h>
 #include <C_CrossRenderer/CrossRenderer.h>
 #include <CrossUI/CrossUI.h>
-
 #include "ResourceLoading/ResourceHub.h"
 #include "Camera.h"
 #include "EventDispatcher.h"
 #include "CameraInput.h"
 #include "Utils.h"
 #include "ModelRenderData.h"
+#include "SkeletonRenderData.h"
 
 static struct
 	{
@@ -21,12 +21,13 @@ static struct
 	bool HaveLastMousePosition;
 	ResourceHandle CurrentAnimationHandle;
 	struct ModelRenderData ModelRenderData;
-	bool Wireframe;
+	struct SkeletonRenderData SkeletonRenderData;
+	bool Wireframe, ShowSkeleton;
 	struct BaseTransform BaseTransform;
 	} ModelViewerData = {0};
 
-//#define TEST_FILENAME MODEL_PATH "/GLTF/Character1/untitled.gltf"
-#define TEST_FILENAME MODEL_PATH "/GLTF/buster_drone/busterDrone.gltf"
+#define TEST_FILENAME MODEL_PATH "/GLTF/Character1/untitled.gltf"
+//#define TEST_FILENAME MODEL_PATH "/GLTF/buster_drone/busterDrone.gltf"
 
 static ResourceHandle LoadModel ( const char *Filename, const bool AutoFit );
 static void ResetCamera ( struct CameraData *Camera );
@@ -34,7 +35,7 @@ static void ResetCamera ( struct CameraData *Camera );
 static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyCode KeyCode, const bool State )
 	{
 	static bool LeftCtrlPressed = false, RightCtrlPressed = false;
-	static bool OPressed = false, F1Pressed = false;
+	static bool OPressed = false, F1Pressed = false, F2Pressed = false;
 
 	edSendKeyStateChangedEvent ( Handle, KeyCode, State );
 	switch ( KeyCode )
@@ -59,6 +60,16 @@ static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyC
 					}
 				}
 			F1Pressed = State;
+			break;
+			}
+		case crKeyCode_F2:
+			{
+			if ( ( State == true ) && ( F2Pressed == false ) )
+				{
+				ModelViewerData.ShowSkeleton = !ModelViewerData.ShowSkeleton;
+				LOG_DEBUG ( "ShowSkeleton: %d", ModelViewerData.ShowSkeleton );
+				}
+			F2Pressed = State;
 			break;
 			}
 		case crKeyCode_LeftControl:
@@ -257,7 +268,9 @@ static ResourceHandle LoadModel ( const char *Filename, const bool AutoFit )
 			UpdateModelRenderDataWithTransform ( &ModelViewerData.ModelRenderData, &ModelViewerData.BaseTransform, Scale );
 			}
 		}
-
+	UpdateCameraMatrices ( &ModelViewerData.MainCamera );
+	BuildSkeletonRenderData ( &ModelViewerData.SkeletonRenderData, &ModelViewerData.ModelRenderData );
+	UpdateSkeletonRenderDataWithCamera ( &ModelViewerData.SkeletonRenderData, &ModelViewerData.MainCamera );
 	UpdateModelRenderDataWithCamera ( &ModelViewerData.ModelRenderData, &ModelViewerData.MainCamera );
 	return Handle;
 	}
@@ -274,6 +287,7 @@ static void ResetCamera ( struct CameraData *Camera )
 		0.0f, 2.5f, 5.0f
 		} );
 	}
+
 
 int main ( int argc, char *argv[] )
 	{
@@ -315,14 +329,19 @@ int main ( int argc, char *argv[] )
 			}
 
 		if ( ModelViewerData.CurrentAnimationHandle != ResourceHandle_Invalid )
+			{
 			UpdateModelRenderDataWithAnimationTime ( &ModelViewerData.ModelRenderData, TotalDelta );
+			}
 
 		// Updating rendering data, if needed
 		if ( ModelViewerData.ForceRenderCommandUpdate )
 			{
 			UpdateModelRenderDataWithCamera ( &ModelViewerData.ModelRenderData, &ModelViewerData.MainCamera );
+			UpdateSkeletonRenderDataWithCamera ( &ModelViewerData.SkeletonRenderData, &ModelViewerData.MainCamera );
 			ModelViewerData.ForceRenderCommandUpdate = false;
 			}
+		if ( ModelViewerData.ShowSkeleton )
+			UpdateSkeletonRenderData ( &ModelViewerData.SkeletonRenderData );
 
 		// Actually rendering the frame
 		char TempString[256];
@@ -332,6 +351,8 @@ int main ( int argc, char *argv[] )
 		crStartRenderToWindow ( crGetMainWindowHandle() );
 		crClearFramebufferWithDefaultValues ( ModelViewerData.MainWindowFramebuffer );
 		RenderModel ( &ModelViewerData.ModelRenderData );
+		if ( ModelViewerData.ShowSkeleton )
+			RenderSkeleton ( &ModelViewerData.SkeletonRenderData );
 
 		crDisplayFramebuffer ( ModelViewerData.MainWindowFramebuffer, crGetMainWindowHandle() );
 		crDisplayWindow ( crGetMainWindowHandle() );
