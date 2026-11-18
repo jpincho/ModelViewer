@@ -9,7 +9,7 @@ struct ModelDescriptor
 	char *Name;
 	struct MeshDescriptor *Meshes;
 	unsigned MeshCount;
-	struct MeshTreeNode *Nodes;
+	struct MeshTreeNode *NodeTree;
 	unsigned NodeCount;
 	struct AABB AABBox;
 	};

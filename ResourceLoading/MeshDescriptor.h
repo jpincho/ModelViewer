@@ -41,7 +41,7 @@ struct MeshDescriptor
 	float *BoneWeights;
 	uint32_t *BoneIndices;
 
-	struct AABB BoundingBox;
+	struct AABB AABBox;
 	crPrimitiveType Primitive;
 	char *MeshName, *MaterialName;
 	};

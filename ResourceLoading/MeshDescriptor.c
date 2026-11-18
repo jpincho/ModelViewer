@@ -31,7 +31,7 @@ void CopyMeshDescriptor ( struct MeshDescriptor *Output, const struct MeshDescri
 		Output->IndexCount = Input->IndexCount;
 		Output->BoneCount = Input->BoneCount;
 		Output->Primitive = Input->Primitive;
-		Output->BoundingBox = Input->BoundingBox;
+		Output->AABBox = Input->AABBox;
 		Output->MeshName = Input->MeshName ? strdup ( Input->MeshName ) : NULL;
 		Output->MaterialName = Input->MaterialName ? strdup ( Input->MaterialName ) : NULL;
 		return;
@@ -117,7 +117,7 @@ void CopyMeshDescriptor ( struct MeshDescriptor *Output, const struct MeshDescri
 	Output->IndexCount = Input->IndexCount;
 	Output->BoneCount = Input->BoneCount;
 	Output->Primitive = Input->Primitive;
-	Output->BoundingBox = Input->BoundingBox;
+	Output->AABBox = Input->AABBox;
 	Output->MeshName = Input->MeshName ? strdup ( Input->MeshName ) : NULL;
 	Output->MaterialName = Input->MaterialName ? strdup ( Input->MaterialName ) : NULL;
 	}

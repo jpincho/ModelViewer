@@ -27,11 +27,11 @@ void CopyModelDescriptor ( struct ModelDescriptor *Output, const struct ModelDes
 	Output->NodeCount = Input->NodeCount;
 	if ( Input->NodeCount )
 		{
-		Output->Nodes = calloc ( Input->NodeCount, sizeof ( struct MeshTreeNode ) );
-		ASSERT_FAIL ( Output->Nodes != NULL );
+		Output->NodeTree = calloc ( Input->NodeCount, sizeof ( struct MeshTreeNode ) );
+		ASSERT_FAIL ( Output->NodeTree != NULL );
 		for ( unsigned NodeIndex = 0; NodeIndex < Input->NodeCount; ++NodeIndex )
 			{
-			CopyMeshTreeNode ( Output->Nodes + NodeIndex, Input->Nodes + NodeIndex );
+			CopyMeshTreeNode ( Output->NodeTree + NodeIndex, Input->NodeTree + NodeIndex );
 			}
 		}
 	memcpy ( &Output->AABBox, &Input->AABBox, sizeof ( struct AABB ) );
@@ -48,9 +48,9 @@ void DestroyModelDescriptor ( struct ModelDescriptor *Descriptor )
 	Descriptor->MeshCount = 0;
 	for ( unsigned NodeIndex = 0; NodeIndex < Descriptor->NodeCount; ++NodeIndex )
 		{
-		DestroyMeshTreeNode ( Descriptor->Nodes + NodeIndex );
+		DestroyMeshTreeNode ( Descriptor->NodeTree + NodeIndex );
 		}
-	SAFE_DEL_C ( Descriptor->Nodes );
+	SAFE_DEL_C ( Descriptor->NodeTree );
 	Descriptor->NodeCount = 0;
 	}
 
@@ -83,23 +83,22 @@ void ComputeMeshTreeNodeWorldMatrices ( const struct MeshTreeNode *NodeTree, con
 void CalculateModelDescriptorAABB ( struct ModelDescriptor *Descriptor )
 	{
 	AABB_InitEmpty ( &Descriptor->AABBox );
+	if ( Descriptor->NodeCount == 0 )
+		return;
 
 	// Calculate the bounding boxes for all the nodes in this model, using the tree and the matrices
-	if ( Descriptor->NodeCount != 0 )
+	mat4 *NodeWorldMatrices = alloca ( Descriptor->NodeCount * sizeof ( mat4 ) );
+	ComputeMeshTreeNodeWorldMatrices ( Descriptor->NodeTree, Descriptor->NodeCount, NodeWorldMatrices );
+	for ( unsigned NodeIndex = 0; NodeIndex < Descriptor->NodeCount; ++NodeIndex )
 		{
-		mat4 *NodeWorldMatrices = alloca ( Descriptor->NodeCount * sizeof ( mat4 ) );
-		ComputeMeshTreeNodeWorldMatrices ( Descriptor->Nodes, Descriptor->NodeCount, NodeWorldMatrices );
-		for ( unsigned NodeIndex = 0; NodeIndex < Descriptor->NodeCount; ++NodeIndex )
+		for ( unsigned MeshIndex = 0; MeshIndex < Descriptor->NodeTree[NodeIndex].MeshIndexCount; ++MeshIndex )
 			{
-			for ( unsigned MeshIndex = 0; MeshIndex < Descriptor->Nodes[NodeIndex].MeshIndexCount; ++MeshIndex )
-				{
-				const unsigned MeshArrayIndex = Descriptor->Nodes[NodeIndex].MeshIndices[MeshIndex];
-				if ( MeshArrayIndex >= Descriptor->MeshCount )
-					continue;
-				struct AABB TransformedBox;
-				AABB_Transform ( &TransformedBox, &Descriptor->Meshes[MeshArrayIndex].BoundingBox, &NodeWorldMatrices[NodeIndex] );
-				AABB_Join ( &Descriptor->AABBox, &Descriptor->AABBox, &TransformedBox );
-				}
+			const unsigned MeshArrayIndex = Descriptor->NodeTree[NodeIndex].MeshIndices[MeshIndex];
+			if ( MeshArrayIndex >= Descriptor->MeshCount )
+				continue;
+			struct AABB TransformedBox;
+			AABB_Transform ( &TransformedBox, &Descriptor->Meshes[MeshArrayIndex].AABBox, &NodeWorldMatrices[NodeIndex] );
+			AABB_Join ( &Descriptor->AABBox, &Descriptor->AABBox, &TransformedBox );
 			}
 		}
 	}

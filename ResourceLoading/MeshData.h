@@ -11,9 +11,11 @@ struct MeshData
 	struct MaterialData Material;
 	uint32_t VertexCount;
 
+	struct AABB AABBox;
 	struct MeshBone *Bones;
 	unsigned BoneCount;
 	};
 
 bool BuildMeshDataFromDescriptor ( const struct MeshDescriptor Descriptor, struct MeshData *Data );
 void DestroyMeshData ( struct MeshData *Data );
+bool IsMeshSkinned ( const struct MeshData *Data );

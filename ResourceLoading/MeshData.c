@@ -265,6 +265,8 @@ bool BuildMeshDataFromDescriptor ( const struct MeshDescriptor Descriptor, struc
 		}
 	else
 		Data->Bones = NULL;
+
+	Data->AABBox = Descriptor.AABBox;
 	Data->BoneCount = Descriptor.BoneCount;
 	return true;
 	}
@@ -287,4 +289,10 @@ void DestroyMeshData ( struct MeshData *Data )
 		DestroyMeshBone ( Data->Bones + BoneIndex );
 		}
 	SAFE_DEL_C ( Data->Bones );
+	AABB_InitEmpty ( &Data->AABBox );
+	}
+
+bool IsMeshSkinned ( const struct MeshData *Data )
+	{
+	return ( ( Data->BoneCount > 0 ) && ( Data->Bones != NULL ) );
 	}

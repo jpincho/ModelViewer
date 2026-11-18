@@ -435,13 +435,13 @@ static bool LoadAssimpMesh ( const struct aiMesh *AssimpMesh, struct MeshDescrip
 		SAFE_DEL_C ( NextWeightSlot );
 		}
 
-	Descriptor->BoundingBox.Min.x = AssimpMesh->mAABB.mMin.x;
-	Descriptor->BoundingBox.Min.y = AssimpMesh->mAABB.mMin.y;
-	Descriptor->BoundingBox.Min.z = AssimpMesh->mAABB.mMin.z;
+	Descriptor->AABBox.Min.x = AssimpMesh->mAABB.mMin.x;
+	Descriptor->AABBox.Min.y = AssimpMesh->mAABB.mMin.y;
+	Descriptor->AABBox.Min.z = AssimpMesh->mAABB.mMin.z;
 
-	Descriptor->BoundingBox.Max.x = AssimpMesh->mAABB.mMax.x;
-	Descriptor->BoundingBox.Max.y = AssimpMesh->mAABB.mMax.y;
-	Descriptor->BoundingBox.Max.z = AssimpMesh->mAABB.mMax.z;
+	Descriptor->AABBox.Max.x = AssimpMesh->mAABB.mMax.x;
+	Descriptor->AABBox.Max.y = AssimpMesh->mAABB.mMax.y;
+	Descriptor->AABBox.Max.z = AssimpMesh->mAABB.mMax.z;
 	LOG_DEBUG ( "Loaded mesh '%s'", Descriptor->MeshName );
 	return true;
 	}

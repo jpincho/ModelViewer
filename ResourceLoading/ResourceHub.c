@@ -462,7 +462,7 @@ bool ResourceHub_BuildResource ( const ResourceHandle EntryHandle )
 			EntryData->ModelResource.Data.NodeTree = calloc ( EntryData->ModelResource.Descriptor.NodeCount, sizeof ( struct MeshTreeNode ) );
 			for ( unsigned Index = 0; Index < EntryData->ModelResource.Descriptor.NodeCount; ++Index )
 				{
-				CopyMeshTreeNode ( &EntryData->ModelResource.Data.NodeTree[Index], &EntryData->ModelResource.Descriptor.Nodes[Index] );
+				CopyMeshTreeNode ( &EntryData->ModelResource.Data.NodeTree[Index], &EntryData->ModelResource.Descriptor.NodeTree[Index] );
 				}
 			EntryData->ModelResource.Data.NodeCount = EntryData->ModelResource.Descriptor.NodeCount;
 			EntryData->ModelResource.Data.AABBox = EntryData->ModelResource.Descriptor.AABBox;

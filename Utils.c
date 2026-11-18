@@ -263,7 +263,7 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 	NewModelDescriptor.Meshes = ModelFileData->Meshes;
 	NewModelDescriptor.Name = ( char * ) ResourceName;
 	NewModelDescriptor.NodeCount = ModelFileData->NodeCount;
-	NewModelDescriptor.Nodes = ModelFileData->NodeTree;
+	NewModelDescriptor.NodeTree = ModelFileData->NodeTree;
 	CalculateModelDescriptorAABB ( &NewModelDescriptor );
 	ResourceHandle NewResource = ResourceHub_CreateEntry ( ResourceType_Model, ResourceName );
 	assert ( NewResource != ResourceHandle_Invalid );
