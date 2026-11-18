@@ -1,5 +1,6 @@
 #include "ShaderCreator.h"
 #include <ShaderGraph/ShaderGraph.h>
+#include <ShaderGraph/GLSLGenerator/GLSLGenerator.h>
 #include <Platform/Logger.h>
 #include <stdio.h>
 #include <string.h>

@@ -466,6 +466,8 @@ bool ResourceHub_BuildResource ( const ResourceHandle EntryHandle )
 				}
 			EntryData->ModelResource.Data.NodeCount = EntryData->ModelResource.Descriptor.NodeCount;
 			EntryData->ModelResource.Data.AABBox = EntryData->ModelResource.Descriptor.AABBox;
+			EntryData->ModelResource.Data.MeshNodeTreeWorldMatrices = calloc ( EntryData->ModelResource.Data.NodeCount, sizeof ( mat4 ) );
+			ComputeMeshTreeNodeWorldMatrices ( EntryData->ModelResource.Data.NodeTree, EntryData->ModelResource.Data.NodeCount, EntryData->ModelResource.Data.MeshNodeTreeWorldMatrices );
 			EntryData->Built = true;
 			return true;
 			}

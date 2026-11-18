@@ -131,9 +131,6 @@ static void UpdateCommandModelMatrices ( struct ModelRenderData *RenderData )
 	if ( ( RenderData->OriginalModelData == NULL ) || ( RenderData->MeshRenderDataCount == 0 ) || ( RenderData->OriginalModelData->NodeCount == 0 ) )
 		return;
 
-	mat4 *BindWorldMatrices = alloca ( RenderData->OriginalModelData->NodeCount * sizeof ( mat4 ) );
-	ComputeMeshTreeNodeWorldMatrices ( RenderData->OriginalModelData->NodeTree, RenderData->OriginalModelData->NodeCount, BindWorldMatrices );
-
 	const bool UseAnimatedNodes = RenderData->Animator.OutputData.NodeMatrices != NULL;
 	for ( unsigned Index = 0; Index < RenderData->MeshRenderDataCount; ++Index )
 		{
@@ -141,7 +138,7 @@ static void UpdateCommandModelMatrices ( struct ModelRenderData *RenderData )
 		if ( NodeIndex >= RenderData->OriginalModelData->NodeCount )
 			continue;
 
-		const mat4 *NodeWorld = &BindWorldMatrices[NodeIndex];
+		const mat4 *NodeWorld = &RenderData->OriginalModelData->MeshNodeTreeWorldMatrices[NodeIndex];
 		if ( ( UseAnimatedNodes ) && ( MeshIsSkinned ( &RenderData->MeshRenderData[Index] ) == false ) && ( NodeIndex < RenderData->Animator.InputData.NodeCount ) )
 			NodeWorld = &RenderData->Animator.OutputData.NodeMatrices[NodeIndex];
 
@@ -204,9 +201,6 @@ void UpdateModelRenderDataWithAnimationTime ( struct ModelRenderData *RenderData
 	if ( ( ModelData == NULL ) || ( ModelData->NodeCount == 0 ) )
 		return;
 
-	mat4 *BindWorldMatrices = alloca ( ModelData->NodeCount * sizeof ( mat4 ) );
-	ComputeMeshTreeNodeWorldMatrices ( ModelData->NodeTree, ModelData->NodeCount, BindWorldMatrices );
-
 	for ( unsigned CommandIndex = 0; CommandIndex < RenderData->MeshRenderDataCount; ++CommandIndex )
 		{
 		struct MeshRenderData *MeshData = &RenderData->MeshRenderData[CommandIndex];
@@ -225,7 +219,7 @@ void UpdateModelRenderDataWithAnimationTime ( struct ModelRenderData *RenderData
 			}
 		FillBoneMatricesWithAnimator ( &RenderData->Animator, BoneMatrices, MeshData->BoneCount,
 		                               MeshData->OriginalMeshData->Bones, MeshData->OriginalMeshData->BoneCount,
-		                               BindWorldMatrices[NodeIndex] );
+		                               RenderData->OriginalModelData->MeshNodeTreeWorldMatrices[NodeIndex] );
 
 		crUnmapShaderBuffer ( MeshData->BoneShaderBuffer );
 		}
