@@ -83,6 +83,22 @@ static MatTexType Translate_aiTextureType ( const enum aiTextureType input )
 		};
 	}
 
+static crPrimitiveType Translate_aiPrimitiveType ( const enum aiPrimitiveType input )
+	{
+	switch ( input )
+		{
+		case aiPrimitiveType_POINT:
+			return crPoints;
+		case aiPrimitiveType_LINE:
+			return crLineList;
+		case ( aiPrimitiveType_NGONEncodingFlag | aiPrimitiveType_TRIANGLE ) :
+		case aiPrimitiveType_TRIANGLE:
+			return crTriangleList;
+		default:
+			return -1;
+		};
+	}
+
 static enum aiTextureType TranslateMatTexTypeToAssimp ( const MatTexType TextureType )
 	{
 	switch ( TextureType )
@@ -281,7 +297,7 @@ static bool LoadAssimpTexture ( const struct aiTexture *AssimpTexture, crTexture
 		}
 	else
 		{
-		if ( crLoadTextureDescriptorFromMemory ( ( void * ) AssimpTexture->pcData, ( unsigned ) AssimpTexture->mWidth, true, Descriptor ) == false )
+		if ( crLoadTextureDescriptorFromMemory ( ( void * ) AssimpTexture->pcData, ( unsigned ) AssimpTexture->mWidth, Descriptor ) == false )
 			{
 			LOG_ERROR ( "Unable to load embedded texture '%s'", Descriptor->TextureName );
 			return false;
@@ -303,14 +319,10 @@ static bool LoadAssimpMesh ( const struct aiMesh *AssimpMesh, struct MeshDescrip
 	{
 	memset ( Descriptor, 0, sizeof ( struct MeshDescriptor ) );
 
-	//NewMeshDescriptor.Primitive = Translate((aiPrimitiveType)AssimpMesh->mPrimitiveTypes);
-
-	if (( AssimpMesh->mPrimitiveTypes & aiPrimitiveType_TRIANGLE ) == 0 )
-		{
-		LOG_WARNING ( "Mesh '%s' has non-triangle primitives, ignoring", AssimpMesh->mName.data );
+	Descriptor->Primitive = Translate_aiPrimitiveType ( AssimpMesh->mPrimitiveTypes );
+	if ( Descriptor->Primitive == -1 )
 		return false;
-		}
-	Descriptor->Primitive = crTriangleList;
+
 	Descriptor->MeshName = strdup ( AssimpMesh->mName.data );
 	Descriptor->Positions = calloc ( AssimpMesh->mNumVertices, sizeof ( vec3 ) );
 	ASSERT_FAIL ( Descriptor->Positions );
@@ -355,16 +367,30 @@ static bool LoadAssimpMesh ( const struct aiMesh *AssimpMesh, struct MeshDescrip
 			}
 		}
 
-	Descriptor->Indices = calloc ( AssimpMesh->mNumFaces * 3, sizeof ( uint32_t ) );
-	assert ( Descriptor->Indices );
-	Descriptor->IndexCount = AssimpMesh->mNumFaces * 3;
-	unsigned index = 0;
-	for ( unsigned face_index = 0; face_index < AssimpMesh->mNumFaces; ++face_index )
+	unsigned VerticesPerFace = 0;
+	switch ( Descriptor->Primitive )
 		{
-		assert ( AssimpMesh->mFaces[face_index].mNumIndices == 3 );
-		Descriptor->Indices[index++] = AssimpMesh->mFaces[face_index].mIndices[0];
-		Descriptor->Indices[index++] = AssimpMesh->mFaces[face_index].mIndices[1];
-		Descriptor->Indices[index++] = AssimpMesh->mFaces[face_index].mIndices[2];
+		case crTriangleList:
+			VerticesPerFace = 3;
+			break;
+		case crLineList:
+			VerticesPerFace = 2;
+			break;
+		case crPoints:
+			VerticesPerFace = 1;
+			break;
+		}
+	Descriptor->Indices = calloc ( AssimpMesh->mNumFaces * VerticesPerFace, sizeof ( uint32_t ) );
+	assert ( Descriptor->Indices );
+	Descriptor->IndexCount = AssimpMesh->mNumFaces * VerticesPerFace;
+	unsigned ArrayIndex = 0;
+	for ( unsigned FaceIndex = 0; FaceIndex < AssimpMesh->mNumFaces; ++FaceIndex )
+		{
+		for ( unsigned VertexIndex = 0; VertexIndex < VerticesPerFace; ++VertexIndex )
+			{
+			assert ( AssimpMesh->mFaces[FaceIndex].mNumIndices == VerticesPerFace );
+			Descriptor->Indices[ArrayIndex++] = AssimpMesh->mFaces[FaceIndex].mIndices[VertexIndex];
+			}
 		}
 
 	if ( AssimpMesh->mNumBones != 0 )
@@ -492,7 +518,33 @@ static bool LoadAssimpAnimation ( const struct aiAnimation *AssimpAnimation, str
 	return true;
 	}
 
-bool LoadFileWithAssimp ( const char *Filename, struct DataFileContentDescriptor *FileData )
+static bool LoadAssimpCamera ( const struct aiCamera *AssimpCamera, struct CameraDescriptor *Descriptor )
+	{
+	memset ( Descriptor, 0, sizeof ( struct CameraDescriptor ) );
+
+	Descriptor->CameraName = strdup ( AssimpCamera->mName.data );
+	Translate_aiVector3D ( AssimpCamera->mPosition, &Descriptor->Position );
+	Translate_aiVector3D ( AssimpCamera->mUp, &Descriptor->Up );
+	Translate_aiVector3D ( AssimpCamera->mLookAt, &Descriptor->Front );
+	Descriptor->PerspectiveParameters.FOV = AssimpCamera->mHorizontalFOV;
+	Descriptor->PerspectiveParameters.Near = AssimpCamera->mClipPlaneNear;
+	Descriptor->PerspectiveParameters.Far = AssimpCamera->mClipPlaneFar;
+	Descriptor->PerspectiveParameters.AspectRatio = AssimpCamera->mAspect;
+
+	// Ignore mOrthographicWidth;
+	return true;
+	}
+
+struct ModelFileLoadOptions GetDefaultModelFileLoadOptions ( void )
+	{
+	static struct ModelFileLoadOptions DefaultValues =
+		{
+		.FlipTexturesVertically = true,
+		};
+	return DefaultValues;
+	}
+
+bool LoadFileWithAssimp ( const char *Filename, const struct ModelFileLoadOptions Options, struct DataFileContentDescriptor * FileData )
 	{
 	unsigned AssimpImportFlags = aiProcess_RemoveRedundantMaterials;
 	AssimpImportFlags |= aiProcess_Triangulate;
@@ -503,9 +555,12 @@ bool LoadFileWithAssimp ( const char *Filename, struct DataFileContentDescriptor
 	AssimpImportFlags |= aiProcess_ImproveCacheLocality;
 	AssimpImportFlags |= aiProcess_FindInstances;// Search for duplicate meshes
 	AssimpImportFlags |= aiProcess_GenBoundingBoxes;
-	//AssimpImportFlags |= aiProcess_FlipUVs;
 	//AssimpImportFlags |= aiProcess_OptimizeMeshes;
 	//AssimpImportFlags |= aiProcess_OptimizeGraph;// Remove empty nodes
+	//AssimpImportFlags |= aiProcess_ImproveCacheLocality;
+
+	if ( Options.FlipTexturesVertically )
+		AssimpImportFlags |= aiProcess_FlipUVs;
 
 	LOG_DEBUG ( "Loading '%s'", Filename );
 	const struct aiScene *AssimpScene = aiImportFile ( Filename, AssimpImportFlags );
@@ -520,10 +575,6 @@ bool LoadFileWithAssimp ( const char *Filename, struct DataFileContentDescriptor
 	FileData->NodeTree = calloc ( FileData->NodeCount, sizeof ( struct MeshTreeNode ) );
 	unsigned StartIndex = 0;
 	LoadAssimpNode ( FileData->NodeTree, &StartIndex, -1, AssimpScene->mRootNode );
-
-	// Assimp 5.4.3 already bakes FBX and Collada axis and unit metadata into the root transform.
-	// Scene metadata still describes the source file, so applying it again doubles the correction.
-	LogMeshTreeNode ( FileData->NodeTree, 0, 0 );
 
 	if ( AssimpScene->mNumTextures != 0 )
 		{
@@ -615,9 +666,23 @@ bool LoadFileWithAssimp ( const char *Filename, struct DataFileContentDescriptor
 		assert ( FileData->Animations );
 		FileData->AnimationCount = AssimpScene->mNumAnimations;
 
-		for ( unsigned animation_index = 0; animation_index < AssimpScene->mNumAnimations; ++animation_index )
+		for ( unsigned AnimationIndex = 0; AnimationIndex < AssimpScene->mNumAnimations; ++AnimationIndex )
 			{
-			if ( LoadAssimpAnimation ( AssimpScene->mAnimations[animation_index], &FileData->Animations[animation_index] ) == false )
+			if ( LoadAssimpAnimation ( AssimpScene->mAnimations[AnimationIndex], &FileData->Animations[AnimationIndex] ) == false )
+				goto on_error;
+			}
+		}
+
+	if ( AssimpScene->mNumCameras != 0 )
+		{
+		LOG_DEBUG ( "Loading %u cameras", AssimpScene->mNumCameras );
+		FileData->Cameras = calloc ( AssimpScene->mNumCameras, sizeof ( struct CameraDescriptor ) );
+		assert ( FileData->Cameras );
+		FileData->CameraCount = AssimpScene->mNumCameras;
+
+		for ( unsigned CameraIndex = 0; CameraIndex < AssimpScene->mNumCameras; ++CameraIndex )
+			{
+			if ( LoadAssimpCamera ( AssimpScene->mCameras[CameraIndex], &FileData->Cameras[CameraIndex] ) == false )
 				goto on_error;
 			}
 		}
@@ -634,65 +699,79 @@ on_error:
 	return false;
 	}
 
-bool IsValidModelFile ( const char *Filename )
+static char *FullSupportedExtensionBlock = NULL;
+static PointerArray SupportedModelFileExtension = {0};
+
+static bool GatherSupportedFileExtensions ( void )
 	{
-	static const char **valid_model_extensions = NULL;
-	static char *full_string_block = NULL;
-	static unsigned valid_model_extension_count = 0;
-
-	if ( full_string_block == NULL )
-		{
-		// First, count how many extensions there are.
-		struct aiString valid_extensions = { 0 };
-		aiGetExtensionList ( &valid_extensions );
-		if ( valid_extensions.length == 0 )
-			return false;
-
-		valid_model_extension_count = 1;
-		char *pointer = strchr ( valid_extensions.data, ';' );
-		while ( pointer != NULL )
-			{
-			++valid_model_extension_count;
-			pointer = strchr ( pointer + 1, ';' );
-			}
-
-		// Second, reserve space in our array for all of those pointers
-		valid_model_extensions = calloc ( valid_model_extension_count, sizeof ( char * ) );
-		assert ( valid_model_extensions );
-
-		// Third, instead of a gazillion tiny allocations, make one big one for all the strings.
-		full_string_block = calloc ( valid_extensions.length + 1, sizeof ( char ) );
-		assert ( full_string_block );
-		memcpy ( full_string_block, valid_extensions.data, valid_extensions.length );
-
-		// Fourth, add all the pointers to the array, substituting ; for NULL
-		pointer = full_string_block;
-		unsigned index = 0;
-		while ( pointer != NULL )
-			{
-			valid_model_extensions[index] = pointer;
-			pointer = strchr ( pointer + 1, ';' );
-			if ( pointer == NULL )
-				break;
-			*pointer = 0;
-			++pointer;
-			++index;
-			}
-		}
-
-	const char *extension = strrchr ( Filename, '.' );
-	if ( extension == NULL )
+	// First, count how many extensions there are.
+	struct aiString SupportedAssimpExtensions = { 0 };
+	aiGetExtensionList ( &SupportedAssimpExtensions );
+	if ( SupportedAssimpExtensions.length == 0 )
 		return false;
 
-	for ( unsigned index = 0; index < valid_model_extension_count; ++index )
+	unsigned SupportedModelFileExtensionCount = 1;
+	char *Pointer = strchr ( SupportedAssimpExtensions.data, ';' );
+	while ( Pointer != NULL )
+		{
+		++SupportedModelFileExtensionCount;
+		Pointer = strchr ( Pointer + 1, ';' );
+		}
+
+	// Second, reserve space in our array for all of those Pointers
+	PointerArray_Clear ( &SupportedModelFileExtension );
+	ASSERT_FAIL ( PointerArray_EnsureFreeSpace ( &SupportedModelFileExtension, SupportedModelFileExtensionCount ) == true );
+	SAFE_DEL_C ( FullSupportedExtensionBlock );
+
+	// Third, instead of a gazillion tiny allocations, make one big one for all the strings.
+	FullSupportedExtensionBlock = calloc ( SupportedAssimpExtensions.length + 1, sizeof ( char ) );
+	ASSERT_FAIL ( FullSupportedExtensionBlock );
+	memcpy ( FullSupportedExtensionBlock, SupportedAssimpExtensions.data, SupportedAssimpExtensions.length );
+
+	// Fourth, add all the Pointers to the array, substituting ; for NULL
+	Pointer = FullSupportedExtensionBlock;
+	while ( Pointer != NULL )
+		{
+		PointerArray_AddAtEnd ( &SupportedModelFileExtension, Pointer );
+		Pointer = strchr ( Pointer + 1, ';' );
+		if ( Pointer == NULL )
+			break;
+		*Pointer = 0;
+		++Pointer;
+		}
+	return true;
+	}
+
+bool IsValidModelFile ( const char *Filename )
+	{
+	// If I haven't created the supported file extension list, do it now
+	if ( FullSupportedExtensionBlock == NULL )
+		{
+		if ( GatherSupportedFileExtensions() == false )
+			return false;
+		}
+
+	const char *Extension = strrchr ( Filename, '.' );
+	if ( Extension == NULL )
+		return false;
+
+	for ( unsigned Index = 0; Index < SupportedModelFileExtension.Count; ++Index )
 		{
 #if defined (PLATFORM_COMPILER_MSVC)
-		if ( PathMatchSpecA ( Filename, ( const char * ) valid_model_extensions[index] ) )
+		if ( PathMatchSpecA ( Filename, ( const char * ) SupportedModelFileExtension.Data[Index] ) )
 			return true;
 #else
-		if ( fnmatch ( ( const char * ) valid_model_extensions[index], Filename, FNM_CASEFOLD ) == 0 )
+		if ( fnmatch ( ( const char * ) SupportedModelFileExtension.Data[Index], Filename, FNM_CASEFOLD ) == 0 )
 			return true;
 #endif
 		}
 	return false;
+	}
+
+const PointerArray GetSupportedModelFileExtensions ( void )
+	{
+	// If I haven't created the supported file extension list, do it now
+	if ( FullSupportedExtensionBlock == NULL )
+		GatherSupportedFileExtensions();
+	return SupportedModelFileExtension;
 	}

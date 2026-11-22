@@ -2,6 +2,7 @@
 #include "ResourceLoading/ThreadedFileLoader.h"
 #include <Platform/Logger.h>
 #include <float.h>
+#include <Platform/Misc.h>
 
 scShaderDefinition BuildShaderDefinitionForMeshData ( const struct MeshData *InputMeshData )
 	{
@@ -66,7 +67,7 @@ bool BuildRenderCommandForMeshData ( crRenderCommand *Command, const struct Mesh
 	{
 	Command->IndexBufferStream = InputMeshData->IndexStream;
 	Command->InstanceCount = 1;
-	Command->Primitive = crTriangleList;
+	Command->Primitive = InputMeshData->Primitive;
 	crSetRenderCommandShader ( Command, Shader );
 	vec4 Diffuse = { InputMeshData->Material.Diffuse.x, InputMeshData->Material.Diffuse.y, InputMeshData->Material.Diffuse.z, 1.0f };
 	vec4 Emissive = { InputMeshData->Material.Emissive.x, InputMeshData->Material.Emissive.y, InputMeshData->Material.Emissive.z, 1.0f };
@@ -205,6 +206,7 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 			if ( TextureIsEmbedded == true )
 				continue;
 			snprintf ( FullTexturePath, sizeof ( FullTexturePath ), "%s%c%s", OwningPath, PLATFORM_PATH_SEPARATOR, ModelFileData->Materials[MaterialIndex].Textures[Type].TextureName );
+			convert_path_separator ( FullTexturePath );
 			ThreadedFileLoader_LoadFile ( FullTexturePath );
 			}
 		}
@@ -228,7 +230,7 @@ ResourceHandle LoadModelFileIntoResourceHub ( const char *Filename, const char *
 				continue;
 
 			snprintf ( FullTexturePath, sizeof ( FullTexturePath ), "%s%c%s", OwningPath, PLATFORM_PATH_SEPARATOR, ModelFileData->Materials[MaterialIndex].Textures[Type].TextureName );
-
+			convert_path_separator ( FullTexturePath );
 			// TODO Wait for texture finished loading here
 			int FileIndex = ThreadedFileLoader_GetResourceFileIndex ( FullTexturePath );
 			if ( FileIndex == -1 )

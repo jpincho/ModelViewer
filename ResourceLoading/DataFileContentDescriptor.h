@@ -4,7 +4,18 @@
 #include "MeshDescriptor.h"
 #include "MaterialDescriptor.h"
 #include "AnimationDescriptor.h"
+
 #include <C_CrossRenderer/Texture.h>
+
+struct CameraDescriptor
+	{
+	char *CameraName;
+	vec3 Position, Up, Front;
+	struct
+		{
+		float FOV, AspectRatio, Near, Far;
+		} PerspectiveParameters;
+	};
 
 struct DataFileContentDescriptor
 	{
@@ -19,6 +30,8 @@ struct DataFileContentDescriptor
 	unsigned NodeCount;
 	struct AnimationDescriptor *Animations;
 	unsigned AnimationCount;
+	struct CameraDescriptor *Cameras;
+	unsigned CameraCount;
 	};
 
 BEGIN_C_DECLARATIONS

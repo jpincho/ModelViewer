@@ -4,7 +4,7 @@
 bool BuildMeshDataFromDescriptor ( const struct MeshDescriptor Descriptor, struct MeshData *Data )
 	{
 	Data->BoneCount = Descriptor.BoneCount;
-	Data->Primitive = crTriangleList;
+	Data->Primitive = Descriptor.Primitive;
 
 	if ( Descriptor.IndexCount != 0 )
 		Data->VertexCount = Descriptor.IndexCount;

@@ -93,18 +93,17 @@ static void KeyStateChanged_Callback ( const crWindowHandle Handle, const crKeyC
 			if ( ( ( LeftCtrlPressed ) || ( RightCtrlPressed ) ) && ( State == true ) && ( OPressed == false ) )
 				{
 				char *SelectedFilename = NULL;
-				SelectedFilename = cuiOpenFileDialog ( NULL, "Load model file", "All valid|*.gltf;*.glb;|GLTF|*.gltf;|GLTF Binary|*.glb" );
+				SelectedFilename = cuiOpenFileDialog ( NULL, "Load model file", "All|*;|All valid|*.gltf;*.glb;|GLTF|*.gltf;|GLTF Binary|*.glb" );
 				if ( SelectedFilename == NULL )
 					{
 					LOG_ERROR ( "Error selecting file" );
+					free ( SelectedFilename );
 					break;
 					}
 
 				if ( LoadModel ( SelectedFilename, true ) == ResourceHandle_Invalid )
-					{
 					LOG_ERROR ( "Unable to load model" );
-					break;
-					}
+				free ( SelectedFilename );
 				}
 			OPressed = State;
 			break;
@@ -225,6 +224,7 @@ static ResourceHandle LoadModel ( const char *Filename, const bool AutoFit )
 	LOG_DEBUG ( "Loading model from '%s'", Filename );
 	ResourceHub_DestroyAll();
 	DestroyModelRenderData ( &ModelViewerData.ModelRenderData );
+	DestroySkeletonRenderData ( &ModelViewerData.SkeletonRenderData );
 
 	ResourceHandle Handle = LoadModelFileIntoResourceHub ( Filename, "Model" );
 	if ( Handle == ResourceHandle_Invalid )

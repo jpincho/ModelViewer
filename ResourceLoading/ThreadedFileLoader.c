@@ -80,7 +80,7 @@ static int LoadAssimpFileThreadFunction ( void *Param )
 
 	int Result = -1;
 	LOG_DEBUG ( "Loading '%s'", Descriptor->Filename );
-	if ( LoadFileWithAssimp ( Descriptor->Filename, Descriptor ) == true )
+	if ( LoadFileWithAssimp ( Descriptor->Filename, GetDefaultModelFileLoadOptions(), Descriptor ) == true )
 		{
 		mtx_lock ( &ResourceAccessMutex );
 		DataFiles.Data[Index].State = HUD_STATE_LOADED_OK;
@@ -127,7 +127,7 @@ static int LoadTextureFileThreadFunction ( void *Param )
 	int Result = -1;
 	LOG_DEBUG ( "Loading '%s'", Descriptor->Filename );
 	crTextureDescriptor *NewDescriptor = calloc ( 1, sizeof ( crTextureDescriptor ) );
-	if ( ( NewDescriptor != NULL ) && ( crLoadTextureDescriptorFromFile ( Descriptor->Filename, true, NewDescriptor ) == true ) )
+	if ( ( NewDescriptor != NULL ) && ( crLoadTextureDescriptorFromFile ( Descriptor->Filename, NewDescriptor ) == true ) )
 		{
 		mtx_lock ( &ResourceAccessMutex );
 		Descriptor->Textures = NewDescriptor;
@@ -147,6 +147,20 @@ static int LoadTextureFileThreadFunction ( void *Param )
 	free ( ThreadData );
 	LOG_DEBUG ( "Finished loading '%s'. Result %d", Descriptor->Filename, Result );
 	return Result;
+	}
+
+static int ThreadedFileLoader_FindFileWithPath ( const char *Filename )
+	{
+	for ( unsigned Index = 0; Index < DataFiles.Capacity; ++Index )
+		{
+		if ( ( DataFiles.Data[Index].State == HUB_STATE_EMPTY ) || ( DataFiles.Data[Index].Descriptor == NULL ) || ( DataFiles.Data[Index].Descriptor->Filename == NULL ) )
+			continue;
+		if ( strcmp ( Filename, DataFiles.Data[Index].Descriptor->Filename ) == 0 )
+			{
+			return Index;
+			}
+		}
+	return -1;
 	}
 
 bool ThreadedFileLoader_Initialize ( void )
@@ -195,8 +209,16 @@ int ThreadedFileLoader_LoadFile ( const char *Filename )
 	if ( ( IsValidModelFile ( Filename ) == false ) && ( crIsValidTextureFile ( Filename ) == false ) )
 		return -1;
 
-	// configure the thread to load onto the selected new slot
 	mtx_lock ( &ResourceAccessMutex );
+
+	// Check if the file is already queued to be loaded
+	int Index = ThreadedFileLoader_FindFileWithPath ( Filename );
+	if ( Index != -1 )
+		{
+		mtx_unlock ( &ResourceAccessMutex );
+		return Index;
+		}
+	// configure the thread to load onto the selected new slot
 	LOG_DEBUG ( "Queueing loading of '%s'", Filename );
 
 	// Make space for the new resource, if needed
@@ -271,19 +293,9 @@ int ThreadedFileLoader_LoadFile ( const char *Filename )
 int ThreadedFileLoader_GetResourceFileIndex ( const char *Filename )
 	{
 	mtx_lock ( &ResourceAccessMutex );
-	int Result = -1;
-	for ( unsigned Index = 0; Index < DataFiles.Capacity; ++Index )
-		{
-		if ( ( DataFiles.Data[Index].State == HUB_STATE_EMPTY ) || ( DataFiles.Data[Index].Descriptor == NULL ) || ( DataFiles.Data[Index].Descriptor->Filename == NULL ) )
-			continue;
-		if ( strcmp ( Filename, DataFiles.Data[Index].Descriptor->Filename ) == 0 )
-			{
-			Result = Index;
-			break;
-			}
-		}
+	int Index = ThreadedFileLoader_FindFileWithPath ( Filename );
 	mtx_unlock ( &ResourceAccessMutex );
-	return Result;
+	return Index;
 	}
 
 void ThreadedFileLoader_UnloadResourceFile ( const int Index )
