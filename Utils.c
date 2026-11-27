@@ -68,6 +68,13 @@ bool BuildRenderCommandForMeshData ( crRenderCommand *Command, const struct Mesh
 	Command->IndexBufferStream = InputMeshData->IndexStream;
 	Command->InstanceCount = 1;
 	Command->Primitive = InputMeshData->Primitive;
+	Command->StartVertex = 0;
+	Command->VertexCount = InputMeshData->VertexCount;
+	Command->InstanceCount = 1;
+	crSetRenderStateToDefault ( &Command->State );
+	Command->State.Culling.Enabled = true;
+	Command->State.DepthTest.Enabled = true;
+
 	crSetRenderCommandShader ( Command, Shader );
 	vec4 Diffuse = { InputMeshData->Material.Diffuse.x, InputMeshData->Material.Diffuse.y, InputMeshData->Material.Diffuse.z, 1.0f };
 	vec4 Emissive = { InputMeshData->Material.Emissive.x, InputMeshData->Material.Emissive.y, InputMeshData->Material.Emissive.z, 1.0f };
@@ -102,13 +109,6 @@ bool BuildRenderCommandForMeshData ( crRenderCommand *Command, const struct Mesh
 		crSetRenderCommandShaderBufferBinding ( Command, crGetShaderAttributeHandle ( Shader, scGetStandardAttributeName ( scAttribute_BoneWeight ) ), InputMeshData->BoneWeightStream );
 		}
 
-	Command->Primitive = crTriangleList;
-	Command->StartVertex = 0;
-	Command->VertexCount = InputMeshData->VertexCount;
-	Command->InstanceCount = 1;
-	crSetRenderStateToDefault ( &Command->State );
-	Command->State.Culling.Enabled = true;
-	Command->State.DepthTest.Enabled = true;
 	return crSanityCheckRenderCommand ( Command ) == 0;
 	}
 

@@ -289,6 +289,7 @@ void DestroyMeshData ( struct MeshData *Data )
 		DestroyMeshBone ( Data->Bones + BoneIndex );
 		}
 	SAFE_DEL_C ( Data->Bones );
+	memset ( Data, 0, sizeof ( struct MeshData ) );
 	AABB_InitEmpty ( &Data->AABBox );
 	}
 

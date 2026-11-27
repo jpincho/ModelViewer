@@ -124,8 +124,8 @@ void CameraInput_ProcessCameraMovement ( const float TimeDelta )
 		{
 		CameraMouseRotation.x = -CameraInputData.MouseMovement.y * CameraInputData.MouseSensitivity * CameraInputData.CameraRotationSpeed;
 		CameraMouseRotation.y = -CameraInputData.MouseMovement.x * CameraInputData.MouseSensitivity * CameraInputData.CameraRotationSpeed;
-		math_ivec2_set_to_zero ( &CameraInputData.MouseMovement );
 		}
+	math_ivec2_set_to_zero ( &CameraInputData.MouseMovement );
 
 	vec3 KeyRotation = MATH_VEC3_ZERO;
 	math_vec3_scale ( &KeyRotation, CameraKeyRotation, TimeDelta );
